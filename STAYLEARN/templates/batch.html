@@ -1,0 +1,217 @@
+{% extends "base.html" %} {% block title %}Prediksi Massal{% endblock %} {%
+block content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Analisis Massal</div>
+    <h1 class="hero-title">Prediksi Banyak Mahasiswa Sekaligus</h1>
+    <p class="hero-desc">
+      Unggah file CSV berisi data mahasiswa untuk menganalisis seluruh daftar
+      sekaligus. Hasilnya dapat langsung diunduh sebagai laporan CSV.
+    </p>
+  </div>
+</div>
+<div class="batch-layout">
+  <div class="batch-guide-row">
+    <div class="guide-card">
+      <div class="guide-step">1</div>
+      <div>
+        <div class="guide-title">Unduh Template</div>
+        <div class="guide-desc">
+          Dapatkan file CSV contoh dengan format kolom yang benar.
+        </div>
+        <a
+          href="{{ url_for('download_template') }}"
+          class="btn btn-sm btn-outline mt-sm"
+          download
+          >Unduh Template CSV</a
+        >
+      </div>
+    </div>
+    <div class="guide-card">
+      <div class="guide-step">2</div>
+      <div>
+        <div class="guide-title">Isi Data</div>
+        <div class="guide-desc">
+          Lengkapi file template dengan data mahasiswa yang ingin diprediksi.
+        </div>
+      </div>
+    </div>
+    <div class="guide-card">
+      <div class="guide-step">3</div>
+      <div>
+        <div class="guide-title">Unggah dan Analisis</div>
+        <div class="guide-desc">
+          Unggah file yang sudah diisi. Sistem akan memproses dan menampilkan
+          hasilnya.
+        </div>
+      </div>
+    </div>
+    <div class="guide-card">
+      <div class="guide-step">4</div>
+      <div>
+        <div class="guide-title">Unduh Hasil</div>
+        <div class="guide-desc">
+          Ekspor seluruh hasil prediksi ke CSV untuk diarsipkan atau
+          ditindaklanjuti.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Unggah File CSV</h2></div>
+    <div
+      id="drop-zone"
+      class="drop-zone"
+      role="button"
+      tabindex="0"
+      aria-label="Area unggah file CSV"
+    >
+      <div class="drop-zone-inner" id="drop-inner">
+        <div class="drop-icon">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 40 40"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect
+              x="4"
+              y="10"
+              width="32"
+              height="24"
+              rx="3"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+            <path
+              d="M 14 20 L 20 14 L 26 20"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <line
+              x1="20"
+              y1="14"
+              x2="20"
+              y2="28"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+            <path
+              d="M 10 6 L 20 2 L 30 6"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+        <p class="drop-title">Seret dan lepas file CSV di sini</p>
+        <p class="drop-sub">atau</p>
+        <label
+          for="csv-input"
+          class="btn btn-outline btn-sm"
+          style="cursor: pointer"
+          >Pilih File dari Komputer</label
+        >
+        <input type="file" id="csv-input" accept=".csv" style="display: none" />
+        <p class="drop-hint">Format: .csv | Maks. 16 MB</p>
+      </div>
+      <div class="drop-file-selected hidden" id="file-selected-info">
+        <div class="file-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+            <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </div>
+        <div class="file-info">
+          <span id="file-name" class="file-name"></span>
+          <span id="file-size" class="file-size"></span>
+        </div>
+        <button
+          id="btn-clear-file"
+          class="btn-clear"
+          type="button"
+          aria-label="Hapus file"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <line
+              x1="3"
+              y1="3"
+              x2="13"
+              y2="13"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+            <line
+              x1="13"
+              y1="3"
+              x2="3"
+              y2="13"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="batch-error" class="batch-error hidden"></div>
+    <div class="form-actions mt-md">
+      <button
+        id="btn-batch-submit"
+        class="btn btn-primary"
+        type="button"
+        disabled
+      >
+        <span class="btn-label">Mulai Analisis</span>
+        <span class="btn-loader hidden"></span>
+      </button>
+      <span id="loading-text" class="hidden" style="margin-left: 12px"></span>
+    </div>
+  </div>
+  <div class="card hidden" id="batch-result-card">
+    <div class="card-header">
+      <h2 class="card-title">Hasil Analisis</h2>
+      <div class="result-actions-row">
+        <div id="batch-summary" class="batch-summary"></div>
+        <button id="btn-export" class="btn btn-sm btn-outline">
+          Ekspor CSV
+        </button>
+      </div>
+    </div>
+    <div class="space"></div>
+    <div class="table-wrap" id="table-wrap">
+      <table class="result-table" id="batch-table">
+        <thead id="batch-thead"></thead>
+        <tbody id="batch-tbody"></tbody>
+        <tfoot id="batch-tfoot" style="display: none"></tfoot>
+      </table>
+    </div>
+    <div class="space"></div>
+    <div
+      class="pagination-controls"
+      id="pagination-controls"
+      style="display: none"
+    >
+      <button id="pagination-prev" class="btn btn-sm btn-outline" disabled>
+        Sebelumnya
+      </button>
+      <span id="pagination-info" style="font-size: 13px"></span>
+      <button id="pagination-next" class="btn btn-sm btn-outline" disabled>
+        Berikutnya
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script src="{{ url_for('static', filename='js/batch.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>"
+    />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="StayLearn: Sistem deteksi dini mahasiswa berpotensi dropout berbasis kecerdasan buatan"
+    />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <title>
+      {% block title %}StayLearn{% endblock %} | Sistem Deteksi Dropout
+    </title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/main.css') }}"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a href="{{ url_for('index') }}" class="nav-brand">
+          <span class="brand-mark">SL</span>
+          <span class="brand-name">StayLearn</span>
+        </a>
+        <div class="nav-links">
+          <a
+            href="{{ url_for('index') }}"
+            class="nav-link {% if request.endpoint == 'index' %}active{% endif %}"
+            >Prediksi Individu</a
+          >
+          <a
+            href="{{ url_for('batch') }}"
+            class="nav-link {% if request.endpoint == 'batch' %}active{% endif %}"
+            >Prediksi Massal</a
+          >
+          <a
+            href="{{ url_for('riwayat_verifikasi') }}"
+            class="nav-link {% if request.endpoint in ('riwayat_verifikasi', 'riwayat_tampil') %}active{% endif %}"
+            >Riwayat Saya</a
+          >
+          <a
+            href="{{ url_for('counselor.dashboard') }}"
+            class="nav-link {% if request.endpoint and request.endpoint.startswith('counselor.') %}active{% endif %}"
+            >Konselor</a
+          >
+        </div>
+      </div>
+    </nav>
+    <main class="main">{% block content %}{% endblock %}</main>
+    <footer class="footer">
+      <div class="footer-inner">
+        <p>StayLearn - Sistem Deteksi Dropout Mahasiswa</p>
+        <p class="footer-sub">GDOoC Telkom University Purwokerto</p>
+      </div>
+    </footer>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

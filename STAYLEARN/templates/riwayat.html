@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Riwayat Perkembangan - {{ student.nim }}{% endblock %}
+{% block head %}
+<style>
+  .chart-container {
+    position: relative;
+    height: 400px;
+    width: 100%;
+    margin: 1rem 0;
+  }
+  .info-box {
+    background: var(--color-primary-light);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  .empty-chart {
+    text-align: center;
+    padding: 3rem;
+    color: var(--color-text-tertiary);
+  }
+  .logout-riwayat {
+    margin-left: auto;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Riwayat Mahasiswa</div>
+    <h1 class="hero-title">Perubahan Risiko Dropout</h1>
+    <p class="hero-desc">
+      Grafik di bawah menunjukkan perkembangan kemungkinan dropout dari waktu ke waktu.
+      Semakin turun garisnya, semakin baik kondisi Anda.
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">📈 Riwayat {{ student.nama or student.nim }}</h2>
+    <div class="logout-riwayat">
+      <form method="post" action="{{ url_for('riwayat_logout') }}" style="display: inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline">🚪 Logout</button>
+      </form>
+    </div>
+  </div>
+  <div style="padding: 0 1.5rem 1.5rem;">
+    <div class="info-box">
+      <strong>ℹ️ Informasi:</strong> Nilai yang ditampilkan adalah persentase kemungkinan dropout.
+      Penurunan nilai menunjukkan perbaikan. Jika Anda melihat peningkatan, segera konsultasikan dengan konselor.
+    </div>
+    <div class="chart-container">
+      <canvas id="riwayatChart"></canvas>
+    </div>
+    <div id="loading-chart" class="empty-chart">
+      <div class="an-spinner" style="margin: 0 auto 1rem;"></div>
+      <p>Memuat data riwayat...</p>
+    </div>
+    <div id="error-chart" class="empty-chart" style="display:none;">
+      <p style="color: var(--color-danger);">Gagal memuat data riwayat.</p>
+      <button class="btn btn-outline btn-sm" onclick="loadData()">Coba Lagi</button>
+    </div>
+    <div class="form-actions" style="margin-top: 1rem;">
+      <a href="{{ url_for('index') }}" class="btn btn-outline">← Kembali ke Prediksi</a>
+      <button id="btn-export-pdf" class="btn btn-primary">📄 Ekspor sebagai PDF</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+        referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script nonce="{{ csp_nonce }}">
+(function() {
+  let chart = null;
+  const nim = "{{ nim }}";
+
+  async function loadData() {
+    const loading = document.getElementById("loading-chart");
+    const errorDiv = document.getElementById("error-chart");
+    loading.style.display = "block";
+    errorDiv.style.display = "none";
+
+    try {
+      const res = await fetch("/api/riwayat/" + encodeURIComponent(nim));
+      const json = await res.json();
+      if (json.status !== "success") throw new Error(json.message || "Gagal");
+      const data = json.data;
+      if (!data.labels || data.labels.length === 0) {
+        loading.innerHTML = "<p>Belum ada data prediksi untuk NIM ini.</p><p>Silakan lakukan prediksi terlebih dahulu di halaman utama.</p>";
+        return;
+      }
+
+      loading.style.display = "none";
+
+      const ctx = document.getElementById("riwayatChart").getContext("2d");
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: "Kemungkinan Dropout (%)",
+            data: data.values,
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "#ef4444",
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  let label = context.dataset.label || "";
+                  let val = context.raw;
+                  let detail = data.details && data.details[context.dataIndex];
+                  let extra = "";
+                  if (detail) {
+                    extra = ` (${detail.risk_level}, ${detail.trajectory})`;
+                  }
+                  return `${label}: ${val}%${extra}`;
+                }
+              }
+            },
+            legend: { position: "top" }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: { display: true, text: "Probabilitas Dropout (%)" },
+              ticks: { callback: (val) => val + "%" }
+            },
+            x: {
+              title: { display: true, text: "Waktu Prediksi" },
+              ticks: { maxRotation: 45, autoSkip: true }
+            }
+          }
+        }
+      });
+    } catch (err) {
+      console.error(err);
+      loading.style.display = "none";
+      errorDiv.style.display = "block";
+    }
+  }
+
+  async function exportPDF() {
+    if (!chart) return;
+    const container = document.querySelector(".card");
+    if (!container) return;
+    try {
+      const canvas = await html2canvas(container, { scale: 2, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("landscape", "mm", "a4");
+      const imgWidth = 280;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 15, 15, imgWidth, imgHeight);
+      pdf.save(`riwayat_${nim}.pdf`);
+    } catch (err) {
+      console.error("PDF export error:", err);
+      alert("Gagal mengekspor PDF. Coba lagi nanti.");
+    }
+  }
+
+  document.getElementById("btn-export-pdf")?.addEventListener("click", exportPDF);
+  loadData();
+})();
+</script>
+{% endblock %}

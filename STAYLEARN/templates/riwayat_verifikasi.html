@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Verifikasi Akses Riwayat{% endblock %}
+{% block content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Riwayat Perkembangan</div>
+    <h1 class="hero-title">Lihat Perubahan Risiko Dropout Anda</h1>
+    <p class="hero-desc">
+      Masukkan NIM dan tanggal lahir untuk melihat grafik perubahan kemungkinan dropout dari waktu ke waktu.
+    </p>
+  </div>
+</div>
+
+<div class="card" style="max-width: 400px; margin: 0 auto;">
+  <div class="card-header">
+    <h2 class="card-title">Verifikasi Identitas</h2>
+  </div>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if error %}
+      <div class="batch-error" style="margin: 0 20px 20px 20px;">{{ error }}</div>
+    {% endif %}
+    <div class="form-group">
+      <label class="form-label" for="nim">NIM</label>
+      <input type="text" id="nim" name="nim" class="form-control" required autofocus>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="birth_date">Tanggal Lahir</label>
+      <input type="date" id="birth_date" name="birth_date" class="form-control" required>
+      <span class="form-hint">Format: YYYY-MM-DD (contoh: 2005-01-15)</span>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Lihat Riwayat</button>
+      <a href="{{ url_for('index') }}" class="btn btn-outline">Kembali</a>
+    </div>
+  </form>
+  <div style="padding: 20px; text-align: center; font-size: 12px; color: var(--color-text-tertiary);">
+    <p>Data tanggal lahir hanya digunakan untuk verifikasi akses.</p>
+  </div>
+</div>
+{% endblock %}

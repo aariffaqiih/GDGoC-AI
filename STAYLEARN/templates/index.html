@@ -1,0 +1,744 @@
+{% extends "base.html" %} {% block title %}Prediksi Individu{% endblock %} {%
+block content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Analisis Individu</div>
+    <h1 class="hero-title">Deteksi Dini Potensi Dropout</h1>
+    <p class="hero-desc">
+      Masukkan data mahasiswa untuk menganalisis tingkat risiko putus studi dan
+      mendapatkan rekomendasi tindak lanjut.
+    </p>
+  </div>
+</div>
+<div class="layout-two-col">
+  <div class="card card-form">
+    <div class="card-header">
+      <h2 class="card-title">Data Mahasiswa</h2>
+      <button id="btn-random" class="btn btn-ghost btn-sm" type="button">
+        Isi Data Contoh
+      </button>
+    </div>
+    <form id="form-predict" novalidate>
+      <div class="form-section">
+        <div class="form-section-title">Informasi Umum</div>
+        <div class="form-group">
+          <label class="form-label" for="nim">NIM (Opsional)</label>
+          <input
+            class="form-control"
+            type="text"
+            id="nim"
+            name="nim"
+            placeholder="contoh: 23001234"
+          />
+          <span class="form-hint"
+            >Isi NIM agar hasil tersimpan ke data konselor</span
+          >
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="nama">Nama (Opsional)</label>
+          <input
+            class="form-control"
+            type="text"
+            id="nama"
+            name="nama"
+            placeholder="contoh: Budi Santoso"
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="birth_date"
+            >Tanggal Lahir (Opsional, untuk akses riwayat)</label
+          >
+          <input
+            class="form-control"
+            type="date"
+            id="birth_date"
+            name="birth_date"
+            placeholder="YYYY-MM-DD"
+          />
+          <span class="form-hint"
+            >Format YYYY-MM-DD. Diperlukan untuk melihat riwayat prediksi
+            nanti.</span
+          >
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="location_type"
+              >Lokasi Tempat Tinggal</label
+            >
+            <select
+              class="form-control"
+              id="location_type"
+              name="location_type"
+              required
+            >
+              <option value="" disabled selected>Pilih lokasi</option>
+              <option value="Urban">Urban (Perkotaan)</option>
+              <option value="Semi-urban">Semi-Urban (Pinggiran Kota)</option>
+              <option value="Rural">Rural (Pedesaan)</option>
+            </select>
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="family_income"
+              >Pendapatan Keluarga / Bulan (Rp)</label
+            >
+            <input
+              class="form-control"
+              type="number"
+              id="family_income"
+              name="family_income"
+              min="2000"
+              max="50000"
+              placeholder="contoh: 8000000"
+              required
+            />
+            <span class="form-hint"
+              >Dalam ribuan rupiah. contoh: 8000 = Rp 8.000.000</span
+            >
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="financial_aid_status"
+              >Status Bantuan Keuangan</label
+            >
+            <select
+              class="form-control"
+              id="financial_aid_status"
+              name="financial_aid_status"
+              required
+            >
+              <option value="" disabled selected>Pilih status</option>
+              <option value="0">0: Tidak Ada Bantuan</option>
+              <option value="1">1: Bantuan Sebagian</option>
+              <option value="2">2: Bantuan Penuh / Beasiswa</option>
+            </select>
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="distance_to_institute"
+              >Jarak ke Kampus (km)</label
+            >
+            <input
+              class="form-control"
+              type="number"
+              id="distance_to_institute"
+              name="distance_to_institute"
+              min="0.5"
+              max="50"
+              step="0.1"
+              placeholder="contoh: 5.5"
+              required
+            />
+            <span class="form-error"></span>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Akses dan Konektivitas</div>
+        <div class="form-grid-1">
+          <div class="form-group">
+            <label class="form-label" for="internet_connectivity_issues"
+              >Masalah Koneksi Internet</label
+            >
+            <select
+              class="form-control"
+              id="internet_connectivity_issues"
+              name="internet_connectivity_issues"
+              required
+            >
+              <option value="" disabled selected>Pilih tingkat masalah</option>
+              <option value="0">0: Tidak Pernah</option>
+              <option value="1">1: Kadang-kadang</option>
+              <option value="2">2: Sering / Selalu</option>
+            </select>
+            <span class="form-error"></span>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Aspek Psikologis dan Sosial</div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="motivation_score">
+              Skor Motivasi Belajar
+              <span class="label-badge" id="motivation_display">-</span>
+            </label>
+            <input
+              class="form-control form-range"
+              type="range"
+              id="motivation_score"
+              name="motivation_score"
+              min="1"
+              max="10"
+              step="1"
+              required
+            />
+            <div class="range-labels">
+              <span>Sangat Rendah (1)</span><span>Sangat Tinggi (10)</span>
+            </div>
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="stress_levels">
+              Tingkat Stres
+              <span class="label-badge" id="stress_display">-</span>
+            </label>
+            <select
+              class="form-control"
+              id="stress_levels"
+              name="stress_levels"
+              required
+            >
+              <option value="" disabled selected>Pilih tingkat stres</option>
+              <option value="1">1: Rendah</option>
+              <option value="2">2: Sedang</option>
+              <option value="3">3: Tinggi</option>
+            </select>
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="career_alignment"
+              >Keselarasan Pilihan Karir</label
+            >
+            <select
+              class="form-control"
+              id="career_alignment"
+              name="career_alignment"
+              required
+            >
+              <option value="" disabled selected>Pilih keselarasan</option>
+              <option value="1">1: Tidak Selaras</option>
+              <option value="2">2: Cukup Selaras</option>
+              <option value="3">3: Sangat Selaras</option>
+            </select>
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="family_support"
+              >Dukungan Keluarga</label
+            >
+            <select
+              class="form-control"
+              id="family_support"
+              name="family_support"
+              required
+            >
+              <option value="" disabled selected>Pilih tingkat dukungan</option>
+              <option value="1">1: Kurang</option>
+              <option value="2">2: Cukup</option>
+              <option value="3">3: Kuat</option>
+            </select>
+            <span class="form-error"></span>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Kinerja Akademik</div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="attendance_rate">
+              Tingkat Kehadiran (%)
+              <span class="label-badge" id="attendance_display">-</span>
+            </label>
+            <input
+              class="form-control form-range"
+              type="range"
+              id="attendance_rate"
+              name="attendance_rate"
+              min="10"
+              max="100"
+              step="0.5"
+              required
+            />
+            <div class="range-labels"><span>10%</span><span>100%</span></div>
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="test_scores_avg">
+              Rata-rata Nilai Ujian
+              <span class="label-badge" id="scores_display">-</span>
+            </label>
+            <input
+              class="form-control form-range"
+              type="range"
+              id="test_scores_avg"
+              name="test_scores_avg"
+              min="35"
+              max="100"
+              step="0.5"
+              required
+            />
+            <div class="range-labels"><span>35</span><span>100</span></div>
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="backlogs"
+              >Jumlah Mata Kuliah Tertunggak</label
+            >
+            <input
+              class="form-control"
+              type="number"
+              id="backlogs"
+              name="backlogs"
+              min="0"
+              max="9"
+              placeholder="0"
+              required
+            />
+            <span class="form-error"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="teaching_quality_rating">
+              Penilaian Kualitas Pengajaran
+              <span class="label-badge" id="teaching_display">-</span>
+            </label>
+            <input
+              class="form-control form-range"
+              type="range"
+              id="teaching_quality_rating"
+              name="teaching_quality_rating"
+              min="1"
+              max="10"
+              step="1"
+              required
+            />
+            <div class="range-labels">
+              <span>Buruk (1)</span><span>Sangat Baik (10)</span>
+            </div>
+            <span class="form-error"></span>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button id="btn-reset" class="btn btn-outline" type="button">
+          Bersihkan Form
+        </button>
+        <button id="btn-submit" class="btn btn-primary" type="submit">
+          <span class="btn-label">Analisis Sekarang</span>
+          <span class="btn-loader hidden"></span>
+        </button>
+      </div>
+    </form>
+  </div>
+  <div class="result-panel" id="result-panel" aria-live="polite">
+    <div class="result-empty" id="result-empty">
+      <div class="empty-icon">
+        <svg
+          width="56"
+          height="56"
+          viewBox="0 0 56 56"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle
+            cx="28"
+            cy="28"
+            r="27"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <circle
+            cx="28"
+            cy="28"
+            r="8"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <line
+            x1="28"
+            y1="1"
+            x2="28"
+            y2="10"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <line
+            x1="28"
+            y1="46"
+            x2="28"
+            y2="55"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <line
+            x1="1"
+            y1="28"
+            x2="10"
+            y2="28"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <line
+            x1="46"
+            y1="28"
+            x2="55"
+            y2="28"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+        </svg>
+      </div>
+      <p class="empty-title">Belum Ada Hasil Analisis</p>
+      <p class="empty-desc">
+        Lengkapi data mahasiswa di formulir sebelah kiri, lalu klik tombol
+        Analisis Sekarang.
+      </p>
+    </div>
+    <div class="result-content hidden" id="result-content">
+      <div class="result-gauge-wrap">
+        <div class="gauge-container">
+          <svg
+            class="gauge-svg"
+            viewBox="0 0 200 120"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M 20 100 A 80 80 0 0 1 180 100"
+              fill="none"
+              stroke="var(--color-border)"
+              stroke-width="14"
+              stroke-linecap="round"
+            />
+            <path
+              id="gauge-arc"
+              d="M 20 100 A 80 80 0 0 1 180 100"
+              fill="none"
+              stroke="var(--color-primary)"
+              stroke-width="14"
+              stroke-linecap="round"
+              stroke-dasharray="251.2"
+              stroke-dashoffset="251.2"
+            />
+            <text
+              id="gauge-pct"
+              x="100"
+              y="96"
+              text-anchor="middle"
+              class="gauge-pct-text"
+            >
+              0%
+            </text>
+            <text x="100" y="114" text-anchor="middle" class="gauge-sub-text">
+              Kemungkinan Bertahan
+            </text>
+          </svg>
+        </div>
+        <div id="risk-badge" class="risk-badge">-</div>
+      </div>
+      <div class="prob-bar-row">
+        <div class="prob-bar-item">
+          <div class="prob-bar-label">
+            <span>Kemungkinan Bertahan</span>
+            <span id="pct-stay" class="prob-val stay">-</span>
+          </div>
+          <div class="prob-bar-track">
+            <div
+              id="bar-stay"
+              class="prob-bar-fill stay"
+              style="width: 0%"
+            ></div>
+          </div>
+        </div>
+        <div class="prob-bar-item">
+          <div class="prob-bar-label">
+            <span>Kemungkinan Dropout</span>
+            <span id="pct-dropout" class="prob-val dropout">-</span>
+          </div>
+          <div class="prob-bar-track">
+            <div
+              id="bar-dropout"
+              class="prob-bar-fill dropout"
+              style="width: 0%"
+            ></div>
+          </div>
+        </div>
+      </div>
+      <div class="factor-grid" id="factor-grid"></div>
+      <div class="recommendation-box" id="recommendation-box"></div>
+
+      {# Tombol Lihat Riwayat, muncul jika nim diisi #}
+      <div
+        id="btn-riwayat-container"
+        class="form-actions"
+        style="margin-top: 1rem; justify-content: center; border-top: none"
+      >
+        <a
+          id="btn-riwayat"
+          href="#"
+          class="btn btn-outline"
+          style="display: none"
+          >📊 Lihat Riwayat Perkembangan Saya</a
+        >
+      </div>
+    </div>
+    <div class="result-error hidden" id="result-error">
+      <p class="error-title">Terjadi Kesalahan</p>
+      <p id="error-message" class="error-msg"></p>
+    </div>
+  </div>
+</div>
+
+{# ── Career Advice Section (SDG 4.4) ── #}
+<div id="career-advice-section" class="hidden" style="margin-top: 2rem">
+  <div class="card">
+    <div class="card-header">
+      <h2
+        class="card-title"
+        style="display: flex; align-items: center; gap: 0.5rem"
+      >
+        <span style="font-size: 1.2rem">🎯</span> Saran Pengembangan Karir
+        <span
+          style="
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--color-primary);
+            background: var(--color-primary-light);
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin-left: 4px;
+          "
+          >SDG 4.4</span
+        >
+      </h2>
+    </div>
+    <div
+      id="career-advice-content"
+      style="
+        padding: 1.25rem 1.5rem;
+        line-height: 1.8;
+        color: var(--color-text-secondary);
+        font-size: 0.95rem;
+      "
+    ></div>
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+<script nonce="{{ csp_nonce }}">
+  /* ── StayLearn Chatbot Widget (SDG 4.7) ─────────────────────────────────── */
+  (function () {
+    "use strict";
+
+    // ── Inject HTML directly into body ──────────────────────────────────────
+    var chatHTML = [
+      '<div id="chatbot-fab" style="position:fixed;bottom:24px;right:24px;z-index:9999;">',
+      '<button id="chatbot-btn" title="StayLearn Assistant"',
+      'style="width:52px;height:52px;border-radius:50%;background:var(--color-primary);',
+      "color:#fff;border:none;cursor:pointer;font-size:1.3rem;",
+      "box-shadow:0 4px 16px rgba(59,130,246,0.4);",
+      'display:flex;align-items:center;justify-content:center;">&#x1F4AC;</button>',
+      "</div>",
+      '<div id="chatbot-window"',
+      'style="position:fixed;bottom:86px;right:24px;z-index:9998;',
+      "width:340px;background:var(--color-surface);border-radius:16px;",
+      "border:1px solid var(--color-border);box-shadow:0 8px 32px rgba(0,0,0,0.15);",
+      'overflow:hidden;display:none;flex-direction:column;max-height:480px;">',
+      '<div style="background:var(--color-primary);color:#fff;padding:0.875rem 1.25rem;',
+      'display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">',
+      "<div>",
+      '<div style="font-weight:700;font-size:0.9rem;">&#x1F393; StayLearn AI Assistant</div>',
+      '<div style="font-size:0.72rem;opacity:0.85;">Powered by Groq · SDG 4.7</div>',
+      "</div>",
+      '<button id="chatbot-close"',
+      'style="background:none;border:none;color:#fff;cursor:pointer;font-size:1.1rem;',
+      'line-height:1;padding:2px 4px;border-radius:4px;">&#x2715;</button>',
+      "</div>",
+      '<div id="chatbot-messages"',
+      'style="flex:1;overflow-y:auto;padding:0.875rem;display:flex;flex-direction:column;',
+      'gap:0.625rem;max-height:300px;min-height:160px;">',
+      '<div style="background:var(--color-primary-light);border-radius:12px 12px 12px 0;',
+      "padding:0.6rem 0.875rem;font-size:0.84rem;max-width:88%;align-self:flex-start;",
+      'line-height:1.5;">',
+      "Halo! Saya AI Assistant StayLearn &#x1F393; Tanya apa saja: beasiswa, karir, SDG, stres, atau layanan kampus!",
+      "</div>",
+      "</div>",
+      '<div style="padding:0.625rem;border-top:1px solid var(--color-border);',
+      'display:flex;gap:0.5rem;flex-shrink:0;background:var(--color-surface);">',
+      '<input id="chatbot-input" type="text" maxlength="500"',
+      'placeholder="Tulis pertanyaanmu..."',
+      'style="flex:1;padding:0.5rem 0.75rem;border:1px solid var(--color-border);',
+      "border-radius:20px;font-size:0.84rem;outline:none;",
+      'background:var(--color-surface);color:var(--color-text);"/>',
+      '<button id="chatbot-send"',
+      'style="width:34px;height:34px;border-radius:50%;background:var(--color-primary);',
+      'color:#fff;border:none;cursor:pointer;font-size:1rem;flex-shrink:0;">&#x2192;</button>',
+      "</div>",
+      "</div>",
+    ].join("");
+
+    document.body.insertAdjacentHTML("beforeend", chatHTML);
+
+    // ── Inject bounce keyframe ───────────────────────────────────────────────
+    var styleEl = document.createElement("style");
+    styleEl.textContent =
+      "@keyframes chatBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}";
+    document.head.appendChild(styleEl);
+
+    // ── Element refs ─────────────────────────────────────────────────────────
+    var btn = document.getElementById("chatbot-btn");
+    var win = document.getElementById("chatbot-window");
+    var closeEl = document.getElementById("chatbot-close");
+    var input = document.getElementById("chatbot-input");
+    var sendEl = document.getElementById("chatbot-send");
+    var msgBox = document.getElementById("chatbot-messages");
+    var isOpen = false;
+    var busy = false;
+
+    // ── Utilities ────────────────────────────────────────────────────────────
+    function getCsrf() {
+      var m = document.querySelector('meta[name="csrf-token"]');
+      return m ? m.getAttribute("content") : "";
+    }
+    function scrollEnd() {
+      setTimeout(function () {
+        msgBox.scrollTop = msgBox.scrollHeight;
+      }, 30);
+    }
+    function esc(s) {
+      return String(s || "").replace(/[&<>"']/g, function (c) {
+        return {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        }[c];
+      });
+    }
+    function fmt(text) {
+      text = esc(text);
+      text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      text = text.replace(
+        /`([^`]+)`/g,
+        '<code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;">$1</code>'
+      );
+      text = text.replace(/^(\d+\.\s.+)$/gm, "<li>$1</li>");
+      text = text.replace(/^[-•]\s(.+)$/gm, "<li>$1</li>");
+      text = text.replace(
+        /(<li>[\s\S]+?<\/li>)/g,
+        '<ul style="margin:4px 0 4px 14px;padding:0;">$1</ul>'
+      );
+      text = text.replace(/\n/g, "<br>");
+      return text;
+    }
+
+    // ── Toggle open/close ────────────────────────────────────────────────────
+    function toggleChat() {
+      isOpen = !isOpen;
+      if (isOpen) {
+        win.style.display = "flex";
+        setTimeout(function () {
+          input.focus();
+          scrollEnd();
+        }, 10);
+      } else {
+        win.style.display = "none";
+      }
+    }
+
+    // ── Add message bubble ───────────────────────────────────────────────────
+    function addMsg(text, fromBot, modelLabel) {
+      var d = document.createElement("div");
+      if (fromBot) {
+        d.style.cssText =
+          "background:var(--color-primary-light);border-radius:12px 12px 12px 0;padding:0.6rem 0.875rem;font-size:0.84rem;max-width:88%;align-self:flex-start;line-height:1.55;color:var(--color-text);";
+        d.innerHTML = fmt(text);
+        if (modelLabel && modelLabel !== "fallback") {
+          var lbl = document.createElement("div");
+          lbl.style.cssText = "font-size:0.62rem;opacity:0.55;margin-top:4px;";
+          lbl.textContent = "🤖 " + modelLabel;
+          d.appendChild(lbl);
+        }
+      } else {
+        d.style.cssText =
+          "background:#3B82F6;color:#fff;border-radius:12px 12px 0 12px;padding:0.6rem 0.875rem;font-size:0.84rem;max-width:88%;align-self:flex-end;line-height:1.5;";
+        d.textContent = text;
+      }
+      msgBox.appendChild(d);
+      scrollEnd();
+      return d;
+    }
+
+    // ── Typing indicator ─────────────────────────────────────────────────────
+    function showTyping() {
+      var d = document.createElement("div");
+      d.id = "chat-typing";
+      d.style.cssText =
+        "background:var(--color-primary-light);border-radius:12px 12px 12px 0;padding:0.625rem 0.875rem;display:flex;gap:5px;align-items:center;align-self:flex-start;";
+      [0, 0.15, 0.3].forEach(function (delay) {
+        var s = document.createElement("span");
+        s.style.cssText =
+          "width:7px;height:7px;border-radius:50%;background:var(--color-primary);display:inline-block;animation:chatBounce 0.9s infinite " +
+          delay +
+          "s;";
+        d.appendChild(s);
+      });
+      msgBox.appendChild(d);
+      scrollEnd();
+      return d;
+    }
+
+    // ── Send message ─────────────────────────────────────────────────────────
+    function send() {
+      if (busy) return;
+      var text = input.value.trim();
+      if (!text) return;
+      addMsg(text, false);
+      input.value = "";
+      busy = true;
+      sendEl.disabled = true;
+      input.disabled = true;
+      sendEl.innerHTML = "&#x23F3;";
+      var typing = showTyping();
+
+      fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrf(),
+        },
+        body: JSON.stringify({ message: text }),
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (j) {
+          typing.remove();
+          var resp =
+            j.data && j.data.response
+              ? j.data.response
+              : "Maaf, terjadi kesalahan.";
+          var model = j.data && j.data.model ? j.data.model : "";
+          addMsg(resp, true, model);
+        })
+        .catch(function () {
+          typing.remove();
+          addMsg("Koneksi bermasalah. Coba lagi nanti.", true, "");
+        })
+        .finally(function () {
+          busy = false;
+          sendEl.disabled = false;
+          input.disabled = false;
+          sendEl.innerHTML = "&#x2192;";
+          input.focus();
+        });
+    }
+
+    // ── Events ───────────────────────────────────────────────────────────────
+    btn.addEventListener("click", toggleChat);
+    closeEl.addEventListener("click", function () {
+      isOpen = false;
+      win.style.display = "none";
+    });
+    sendEl.addEventListener("click", send);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %} {% block title %}Halaman Tidak Ditemukan{% endblock %}
+{% block content %}
+<div class="error-page">
+  <div class="error-code">404</div>
+  <h1 class="error-page-title">Halaman Tidak Ditemukan</h1>
+  <p class="error-page-desc">
+    Halaman yang Anda cari tidak tersedia atau telah dipindahkan.
+  </p>
+  <a href="{{ url_for('index') }}" class="btn btn-primary"
+    >Kembali ke Beranda</a
+  >
+</div>
+{% endblock %}
