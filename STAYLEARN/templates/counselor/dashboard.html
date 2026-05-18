@@ -1,0 +1,258 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Daftar Antrian — Konselor{% endblock %}
+
+{% block counselor_content %}
+
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Konselor</div>
+    <h1 class="hero-title">Antrian Prioritas Konseling</h1>
+    <p class="hero-desc">
+      Antrian mahasiswa berdasarkan tingkat risiko dropout dan tren terkini.
+    </p>
+  </div>
+</div>
+
+{# ── Collective Wellbeing Alert Banner ── #}
+<div id="wellbeing-alert-container" style="margin-bottom: 1rem;"></div>
+
+{# ── Stats Row ── #}
+<div class="batch-guide-row" style="margin-bottom: 1.5rem;">
+  <div class="guide-card" style="flex:1; text-align:center;">
+    <div class="guide-step" style="background:var(--color-primary);">{{ stats.total_students }}</div>
+    <div class="guide-title">Total Mahasiswa Terdaftar</div>
+  </div>
+  <div class="guide-card" style="flex:1; text-align:center;">
+    <div class="guide-step" style="background:var(--color-danger);">{{ stats.pending_tinggi }}</div>
+    <div class="guide-title">Konseling Belum Dijadwal</div>
+    <div class="guide-desc">Risiko Tinggi</div>
+  </div>
+  <div class="guide-card" style="flex:1; text-align:center;">
+    <div class="guide-step" style="background:var(--color-warning);">{{ stats.pending_sedang }}</div>
+    <div class="guide-title">Monitoring Belum Dijadwal</div>
+    <div class="guide-desc">Risiko Sedang</div>
+  </div>
+  <div class="guide-card" style="flex:1; text-align:center;">
+    <div class="guide-step" style="background:var(--color-success);">{{ stats.done_this_month }}</div>
+    <div class="guide-title">Selesai Bulan Ini</div>
+  </div>
+</div>
+
+{# ── Filter Controls + Reset Button ── #}
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="card-header">
+    <h2 class="card-title">Antrian Mahasiswa</h2>
+    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+      {# Finding #20: Parameter risk dan status di-escape otomatis oleh Jinja2.
+         Jangan pernah gunakan |safe pada variabel yang berasal dari request.args. #}
+      <form method="get" action="{{ url_for('counselor.dashboard') }}"
+            style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+        <select name="risk" id="filter-risk" class="form-control" style="width:auto; min-width:160px;">
+          <option value="semua"  {% if filter_risk == 'semua'  %}selected{% endif %}>Semua Risiko</option>
+          <option value="tinggi" {% if filter_risk == 'tinggi' %}selected{% endif %}>Risiko Tinggi</option>
+          <option value="sedang" {% if filter_risk == 'sedang' %}selected{% endif %}>Risiko Sedang</option>
+        </select>
+        <select name="status" id="filter-status" class="form-control" style="width:auto; min-width:160px;">
+          <option value="semua"     {% if filter_status == 'semua'     %}selected{% endif %}>Semua Status</option>
+          <option value="pending"   {% if filter_status == 'pending'   %}selected{% endif %}>Belum Dijadwal</option>
+          <option value="scheduled" {% if filter_status == 'scheduled' %}selected{% endif %}>Sudah Dijadwal</option>
+        </select>
+      </form>
+
+      {# Tombol reset hanya tampil saat debug mode aktif (is_debug = True) #}
+      {% if is_debug %}
+      <button id="btn-reset-data" class="btn btn-outline btn-sm" style="color: var(--color-danger);">
+        Reset Semua Data
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if queue %}
+  <div class="table-wrap">
+    <table class="result-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>NIM</th>
+          <th>Nama</th>
+          <th>Tingkat Risiko</th>
+          <th>Prob. Dropout</th>
+          <th>Tren</th>
+          <th>Jenis Aksi</th>
+          <th>Status</th>
+          <th>Jadwal</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in queue %}
+          <tr>
+            <td class="numeric">{{ loop.index }}</td>
+            <td><strong>{{ item.nim }}</strong></td>
+            <td>{{ item.nama or '-' }}</td>
+            <td>
+              <span class="risk-tag {{ item.risk_level }}">
+                {{ 'Risiko Tinggi' if item.risk_level == 'tinggi' else 'Risiko Sedang' }}
+              </span>
+            </td>
+            <td class="numeric">
+              <strong>{{ "%.1f"|format(item.p_dropout * 100) }}%</strong>
+            </td>
+            <td>
+              {% set traj_color = {
+                'memburuk': '#EF4444',
+                'stagnan':  '#F59E0B',
+                'membaik':  '#10B981',
+                'baru':     'var(--color-primary)'
+              } %}
+              {% set traj_icon = {
+                'memburuk': '↑',
+                'stagnan':  '→',
+                'membaik':  '↓',
+                'baru':     '★'
+              } %}
+              <span style="color:{{ traj_color.get(item.trajectory, '#64748B') }}; font-weight:600;">
+                {{ traj_icon.get(item.trajectory, '') }} {{ item.trajectory }}
+              </span>
+            </td>
+            <td>
+              <span style="font-size:0.8rem; text-transform:uppercase;
+                           color:{{ '#EF4444' if item.action_type == 'konseling' else '#F59E0B' }};">
+                {{ item.action_type }}
+              </span>
+            </td>
+            <td>
+              <span class="risk-tag {{ 'rendah' if item.status == 'scheduled' else 'tinggi' }}"
+                    style="font-size:0.75rem;">
+                {{ 'Dijadwal' if item.status == 'scheduled' else 'Belum Dijadwal' }}
+              </span>
+            </td>
+            <td style="font-size:0.82rem; color:var(--color-text-muted);">
+              {{ item.scheduled_at[:16] if item.scheduled_at else '-' }}
+            </td>
+            <td>
+              <a href="{{ url_for('counselor.student_detail', student_id=item.student_id) }}"
+                 class="btn btn-sm btn-outline">Kelola</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="padding: 0.75rem 1rem; font-size:0.85rem; color:var(--color-text-muted);">
+    Menampilkan {{ queue|length }} mahasiswa dalam antrian
+  </div>
+
+  {% else %}
+  <div style="padding: 3rem; text-align:center; color:var(--color-text-muted);">
+    <p style="font-size:1.1rem; margin-bottom:0.5rem;">Tidak ada mahasiswa dalam antrian</p>
+    <p style="font-size:0.875rem;">
+      Antrian terisi otomatis setelah prediksi batch atau prediksi individu (dengan NIM) dilakukan.
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block counselor_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+
+  // ── Filter auto-submit ──────────────────────────────────────────────────
+  var riskSel   = document.getElementById("filter-risk");
+  var statusSel = document.getElementById("filter-status");
+  if (riskSel)   riskSel.addEventListener("change",   function () { this.form.submit(); });
+  if (statusSel) statusSel.addEventListener("change", function () { this.form.submit(); });
+
+  // ── Reset data (development only) ────────────────────────────────────────
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute("content") : "";
+  }
+
+  var resetBtn = document.getElementById("btn-reset-data");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", function () {
+      if (!confirm(
+        "\u26A0\uFE0F PERINGATAN: Semua data mahasiswa, prediksi, dan riwayat konseling\n" +
+        "akan dihapus secara permanen.\n\nLanjutkan?"
+      )) return;
+
+      fetch("/konselor/reset-data", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCsrfToken(),
+          "Content-Type": "application/json",
+        },
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data.status === "success") {
+            alert("Data berhasil direset. Halaman akan dimuat ulang.");
+            window.location.reload();
+          } else {
+            alert("Gagal mereset data: " + (data.message || "Terjadi kesalahan."));
+          }
+        })
+        .catch(function (err) {
+          console.error(err);
+          alert("Tidak dapat terhubung ke server.");
+        });
+    });
+  }
+
+  // ── Collective Wellbeing Early Warning ───────────────────────────────────
+  function loadWellbeingAlerts() {
+    var container = document.getElementById("wellbeing-alert-container");
+    if (!container) return;
+
+    fetch("/konselor/api/wellbeing")
+      .then(function(res) { return res.json(); })
+      .then(function(json) {
+        if (json.status !== "success" || !json.data.alerts || json.data.alerts.length === 0) {
+          container.innerHTML = "";
+          return;
+        }
+        var alertsHtml = "";
+        for (var i = 0; i < json.data.alerts.length; i++) {
+          var alert = json.data.alerts[i];
+          var bgColor = (alert.type === "high_stress") ? "var(--color-warning-light)" : "var(--color-danger-light)";
+          var borderColor = (alert.type === "high_stress") ? "var(--color-warning)" : "var(--color-danger)";
+          var icon = (alert.type === "high_stress") ? "⚠️" : "🔥";
+          alertsHtml += `
+            <div style="background: ${bgColor}; border-left: 4px solid ${borderColor};
+                        border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 0.75rem;
+                        display: flex; align-items: flex-start; gap: 0.75rem;">
+              <div style="font-size: 1.4rem;">${icon}</div>
+              <div style="flex:1; font-size: 0.9rem; line-height: 1.5;">
+                ${escapeHtml(alert.message)}
+              </div>
+            </div>
+          `;
+        }
+        container.innerHTML = alertsHtml;
+      })
+      .catch(function(err) {
+        console.error("Gagal memuat wellbeing alerts:", err);
+        container.innerHTML = "";
+      });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === "&") return "&amp;";
+      if (m === "<") return "&lt;";
+      if (m === ">") return "&gt;";
+      return m;
+    });
+  }
+
+  loadWellbeingAlerts();
+})();
+</script>
+{% endblock %}

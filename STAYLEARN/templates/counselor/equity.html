@@ -1,0 +1,254 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Equity Dashboard — SDG 4.5{% endblock %}
+
+{% block counselor_content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">SDG 4.5 — Kesetaraan Pendidikan</div>
+    <h1 class="hero-title">Equity & Gender Parity Dashboard</h1>
+    <p class="hero-desc">
+      Indeks paritas risiko dropout berdasarkan gender, status disabilitas,
+      masyarakat adat, dan daerah konflik. Target SDG 4.5: indeks paritas gender 0.97–1.03.
+    </p>
+  </div>
+</div>
+
+<div id="eq-loading" style="text-align:center;padding:4rem 0;color:var(--color-text-muted);">
+  <div class="btn-loader" style="display:inline-block;margin-bottom:1rem;"></div>
+  <p>Memuat data equity…</p>
+</div>
+<div id="eq-error" class="hidden" style="padding:2rem;text-align:center;color:var(--color-danger);">
+  <p id="eq-error-msg">Gagal memuat data.</p>
+  <button class="btn btn-outline btn-sm" id="eq-retry">Coba Lagi</button>
+</div>
+<div id="eq-content" class="hidden">
+
+  {# Alerts #}
+  <div id="eq-alerts" style="margin-bottom:1.5rem;"></div>
+
+  {# Parity Index Cards #}
+  <div class="batch-guide-row" style="margin-bottom:1.5rem;">
+    <div class="guide-card" style="flex:1;text-align:center;">
+      <div class="guide-step" id="eq-pi-gender" style="font-size:1.4rem;">—</div>
+      <div class="guide-title">Parity Index Gender</div>
+      <div class="guide-desc">Target: 0.97–1.03 (P/L dropout ratio)</div>
+    </div>
+    <div class="guide-card" style="flex:1;text-align:center;">
+      <div class="guide-step" id="eq-pi-disab" style="font-size:1.4rem;">—</div>
+      <div class="guide-title">Parity Index Disabilitas</div>
+      <div class="guide-desc">Target: 0.90–1.10</div>
+    </div>
+    <div class="guide-card" style="flex:1;text-align:center;">
+      <div class="guide-step" id="eq-gender-data" style="background:var(--color-primary);">—</div>
+      <div class="guide-title">Mahasiswa dengan Data Gender</div>
+      <div class="guide-desc">dari total mahasiswa</div>
+    </div>
+    <div class="guide-card" style="flex:1;text-align:center;">
+      <div class="guide-step" id="eq-total" style="background:var(--color-success);">—</div>
+      <div class="guide-title">Total Mahasiswa Dianalisis</div>
+    </div>
+  </div>
+
+  {# Charts row #}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Risiko Dropout per Gender</h2></div>
+      <div style="padding:1rem;position:relative;height:220px;"><canvas id="eq-chart-gender"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Risiko per Dimensi Kerentanan</h2></div>
+      <div style="padding:1rem;position:relative;height:220px;"><canvas id="eq-chart-vuln"></canvas></div>
+    </div>
+  </div>
+
+  {# Detail tables #}
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+      <h2 class="card-title">Detail per Kelompok</h2>
+      <span style="font-size:0.8rem;color:var(--color-text-muted);">Avg p_dropout per kelompok</span>
+    </div>
+    <div class="table-wrap">
+      <table class="result-table">
+        <thead>
+          <tr><th>Dimensi</th><th>Kelompok</th><th>Jumlah</th>
+          <th>Avg Risiko Dropout</th><th>% Risiko Tinggi</th></tr>
+        </thead>
+        <tbody id="eq-detail-tbody"></tbody>
+      </table>
+    </div>
+    <div style="padding:0.75rem 1rem;font-size:0.8rem;color:var(--color-text-muted);" id="eq-ts"></div>
+  </div>
+
+  {# Update student equity data #}
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Update Data Equity Mahasiswa</h2>
+      <span style="font-size:0.8rem;color:var(--color-text-muted);">Isi data untuk analisis yang lebih akurat</span>
+    </div>
+    <div style="padding:1rem;max-width:500px;">
+      <div id="eq-update-feedback" style="display:none;padding:0.75rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.875rem;"></div>
+      <div class="form-group">
+        <label class="form-label">Student ID</label>
+        <input type="number" id="eq-student-id" class="form-control" placeholder="ID mahasiswa (dari URL halaman detail)" style="width:180px;"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gender</label>
+        <select id="eq-gender" class="form-control" style="width:160px;">
+          <option value="">Tidak diisi</option>
+          <option value="L">Laki-laki</option>
+          <option value="P">Perempuan</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;">
+          <input type="checkbox" id="eq-disability"> Penyandang Disabilitas
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;">
+          <input type="checkbox" id="eq-indigenous"> Masyarakat Adat
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;">
+          <input type="checkbox" id="eq-conflict"> Berasal dari Daerah Konflik
+        </label>
+      </div>
+      <button class="btn btn-primary btn-sm" id="eq-update-btn">Simpan Data Equity</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block counselor_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+  var charts = {};
+
+  function esc(s) { return String(s||"").replace(/[&<>]/g,function(m){return m==="&"?"&amp;":m==="<"?"&lt;":"&gt;"; }); }
+  function el(id){ return document.getElementById(id); }
+
+  function load() {
+    el("eq-loading").classList.remove("hidden");
+    el("eq-error").classList.add("hidden");
+    el("eq-content").classList.add("hidden");
+    fetch("/konselor/api/equity-extended",{credentials:"same-origin"})
+      .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(function(j){
+        if(j.status!=="success")throw new Error(j.message);
+        render(j.data);
+      })
+      .catch(function(e){
+        el("eq-error-msg").textContent="Gagal: "+e.message;
+        el("eq-loading").classList.add("hidden");
+        el("eq-error").classList.remove("hidden");
+      });
+  }
+
+  function render(d) {
+    // Alerts
+    var alertsEl = el("eq-alerts");
+    alertsEl.innerHTML = (d.alerts||[]).map(function(a){
+      var bg = a.severity==="warning" ? "var(--color-warning-light)" : "var(--color-danger-light)";
+      var border = a.severity==="warning" ? "var(--color-warning)" : "var(--color-danger)";
+      return "<div style='background:"+bg+";border-left:4px solid "+border+";border-radius:var(--radius-md);padding:0.875rem 1rem;margin-bottom:0.5rem;font-size:0.875rem;'>⚠️ "+esc(a.message)+"</div>";
+    }).join("") || "";
+
+    // Parity indices
+    var pi = d.parity_indices || {};
+    var gpi = pi.gender;
+    if(gpi){
+      var gpiEl = el("eq-pi-gender");
+      gpiEl.textContent = gpi.value;
+      gpiEl.style.background = (gpi.value>=0.97&&gpi.value<=1.03) ? "var(--color-success)" : "var(--color-warning)";
+    } else { el("eq-pi-gender").textContent = "N/A"; el("eq-pi-gender").style.background="#94A3B8"; }
+    var dpi = pi.disability;
+    if(dpi){
+      var dpiEl = el("eq-pi-disab");
+      dpiEl.textContent = dpi.value;
+      dpiEl.style.background = (dpi.value>=0.9&&dpi.value<=1.1) ? "var(--color-success)" : "var(--color-warning)";
+    } else { el("eq-pi-disab").textContent = "N/A"; el("eq-pi-disab").style.background="#94A3B8"; }
+
+    el("eq-gender-data").textContent = d.total_with_gender_data + " / " + d.total_students;
+    el("eq-total").textContent = d.total_students;
+
+    // Gender chart
+    var gData = d.gender || {};
+    var gLabels = Object.keys(gData);
+    var gVals = gLabels.map(function(k){ return Math.round(gData[k].avg_p_dropout*100*10)/10; });
+    if(charts.gender) charts.gender.destroy();
+    charts.gender = new Chart(el("eq-chart-gender"),{
+      type:"bar", data:{labels:gLabels,datasets:[{
+        label:"Avg risiko dropout (%)", data:gVals,
+        backgroundColor:["#3B82F6","#EC4899","#94A3B8"], borderRadius:4
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}
+    });
+
+    // Vulnerability chart
+    var vLabels=[], vVals=[];
+    var dims = [["disability",d.disability],["indigenous",d.indigenous],["conflict",d.conflict]];
+    dims.forEach(function(pair){
+      var label=pair[0], agg=pair[1]||{};
+      Object.keys(agg).forEach(function(k){
+        vLabels.push(k.substring(0,20));
+        vVals.push(Math.round(agg[k].avg_p_dropout*100*10)/10);
+      });
+    });
+    if(charts.vuln) charts.vuln.destroy();
+    charts.vuln = new Chart(el("eq-chart-vuln"),{
+      type:"bar", data:{labels:vLabels,datasets:[{
+        label:"Avg risiko dropout (%)", data:vVals,
+        backgroundColor:"#7C3AED", borderRadius:4
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{y:{beginAtZero:true,max:100},x:{ticks:{font:{size:10}}}}}
+    });
+
+    // Detail table
+    var tbody = el("eq-detail-tbody");
+    var rows = [];
+    function addRows(dimName, agg){
+      Object.keys(agg||{}).forEach(function(k){
+        var v=agg[k];
+        rows.push("<tr><td>"+esc(dimName)+"</td><td>"+esc(k)+"</td><td class='numeric'>"+v.count+"</td>"+
+          "<td class='numeric'>"+(v.avg_p_dropout*100).toFixed(1)+"%</td>"+
+          "<td class='numeric'>"+v.high_risk_pct+"%</td></tr>");
+      });
+    }
+    addRows("Gender",d.gender);addRows("Disabilitas",d.disability);
+    addRows("Adat",d.indigenous);addRows("Konflik",d.conflict);
+    tbody.innerHTML = rows.join("") || "<tr><td colspan='5' style='text-align:center;color:var(--color-text-muted);'>Belum ada data equity. Update data mahasiswa di bawah.</td></tr>";
+
+    el("eq-ts").textContent = "Diperbarui: "+(d.computed_at||"—");
+    el("eq-loading").classList.add("hidden");
+    el("eq-content").classList.remove("hidden");
+  }
+
+  // Update student equity
+  el("eq-update-btn").addEventListener("click",function(){
+    var sid = parseInt(el("eq-student-id").value);
+    var fb = el("eq-update-feedback");
+    if(!sid||isNaN(sid)){
+      fb.textContent="Student ID tidak valid."; fb.style.background="#FEE2E2"; fb.style.color="#991B1B"; fb.style.display="block"; return;
+    }
+    var gender = el("eq-gender").value || null;
+    var payload = { disability_status: el("eq-disability").checked, indigenous: el("eq-indigenous").checked, conflict_affected: el("eq-conflict").checked };
+    if(gender) payload.gender = gender;
+    fetch("/konselor/api/students/"+sid+"/equity",{
+      method:"PATCH", credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-CSRFToken":document.querySelector('meta[name="csrf-token"]').getAttribute("content")},
+      body:JSON.stringify(payload)
+    }).then(function(r){return r.json();}).then(function(j){
+      if(j.status==="success"){
+        fb.textContent="Data equity berhasil disimpan!"; fb.style.background="#D1FAE5"; fb.style.color="#065F46";
+      } else {
+        fb.textContent=j.message||"Gagal."; fb.style.background="#FEE2E2"; fb.style.color="#991B1B";
+      }
+      fb.style.display="block";
+    });
+  });
+
+  el("eq-retry").addEventListener("click",load);
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",load);
+  else load();
+})();
+</script>
+{% endblock %}

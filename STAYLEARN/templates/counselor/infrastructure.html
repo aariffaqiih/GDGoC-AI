@@ -1,0 +1,228 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Survei Infrastruktur Kampus — SDG 4.a{% endblock %}
+
+{% block counselor_content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">SDG 4.a — Lingkungan Belajar Inklusif</div>
+    <h1 class="hero-title">Survei Infrastruktur Kampus</h1>
+    <p class="hero-desc">
+      Pantau ketersediaan fasilitas dasar sesuai indikator SDG 4.a.1:
+      listrik, air bersih, sanitasi, komputer, internet, dan aksesibilitas disabilitas.
+    </p>
+  </div>
+</div>
+
+<div id="infra-loading" style="text-align:center;padding:3rem 0;color:var(--color-text-muted);">
+  <div class="btn-loader" style="display:inline-block;margin-bottom:1rem;"></div>
+  <p>Memuat data infrastruktur…</p>
+</div>
+<div id="infra-content" class="hidden">
+
+  {# Overall summary #}
+  <div class="batch-guide-row" style="margin-bottom:1.5rem;" id="infra-kpi-row"></div>
+
+  {# Radar chart + table #}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Profil Fasilitas (Rata-rata Semua Kampus)</h2>
+      </div>
+      <div style="padding:1rem;position:relative;height:280px;">
+        <canvas id="infra-radar"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Ketersediaan per Kampus</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="result-table">
+          <thead>
+            <tr><th>Kampus</th><th>Laporan</th><th>Listrik</th><th>Internet</th>
+            <th>Komputer</th><th>Disabilitas</th><th>Aman</th></tr>
+          </thead>
+          <tbody id="infra-campus-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# Submit new report #}
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Tambah Laporan Baru</h2>
+      <span style="font-size:0.8rem;color:var(--color-text-muted);">
+        Konselor atau mahasiswa dapat melaporkan kondisi fasilitas
+      </span>
+    </div>
+    <div style="padding:1rem;max-width:560px;">
+      <div id="infra-submit-feedback" style="display:none;padding:0.75rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.875rem;"></div>
+      <div class="form-group">
+        <label class="form-label">Kampus / Gedung *</label>
+        <input type="text" id="infra-campus" class="form-control" placeholder="Contoh: Kampus Utama, Gedung A" value="Kampus Utama"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fakultas / Unit (Opsional)</label>
+        <input type="text" id="infra-faculty" class="form-control" placeholder="Contoh: Fakultas Informatika"/>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-electricity" checked> ⚡ Listrik tersedia
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-water" checked> 💧 Air bersih tersedia
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-sanitation" checked> 🚿 Sanitasi memadai
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-wc"> 🚻 Toilet terpisah gender
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-computers" checked> 💻 Komputer untuk belajar
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-internet" checked> 🌐 Internet tersedia
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-disability"> ♿ Fasilitas disabilitas
+        </label>
+        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" id="infra-safe" checked> 🛡️ Lingkungan aman & inklusif
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Catatan Tambahan</label>
+        <textarea id="infra-notes" class="form-control" rows="2" placeholder="Kondisi khusus, kerusakan, atau saran perbaikan..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="infra-submit">Kirim Laporan</button>
+        <button class="btn btn-outline" id="infra-refresh">Refresh Data</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block counselor_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+  var radarChart = null;
+  var FACILITIES = [
+    {key:"electricity", label:"Listrik"},
+    {key:"clean_water", label:"Air Bersih"},
+    {key:"sanitation", label:"Sanitasi"},
+    {key:"separate_wc", label:"Toilet Terpisah"},
+    {key:"computers", label:"Komputer"},
+    {key:"internet", label:"Internet"},
+    {key:"disability_access", label:"Disabilitas"},
+    {key:"safe_environment", label:"Lingkungan Aman"},
+  ];
+
+  function esc(s){ return String(s||"").replace(/[&<>]/g,function(m){return m==="&"?"&amp;":m==="<"?"&lt;":"&gt;";}); }
+  function pct(v){ return v!==null&&v!==undefined ? Math.round(v*100)+"%": "—"; }
+  function getCsrf(){ var m=document.querySelector('meta[name="csrf-token"]'); return m?m.getAttribute("content"):""; }
+
+  function load() {
+    document.getElementById("infra-loading").classList.remove("hidden");
+    document.getElementById("infra-content").classList.add("hidden");
+    fetch("/konselor/api/infrastructure",{credentials:"same-origin"})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(j.status!=="success") throw new Error(j.message);
+        render(j.data);
+      })
+      .catch(function(e){
+        document.getElementById("infra-loading").textContent = "Gagal memuat: "+e.message;
+      });
+  }
+
+  function render(d) {
+    document.getElementById("infra-loading").classList.add("hidden");
+    document.getElementById("infra-content").classList.remove("hidden");
+
+    // KPI row
+    var ov = d.overall || {};
+    var kpiRow = document.getElementById("infra-kpi-row");
+    var kpis = FACILITIES.slice(0,4);
+    kpiRow.innerHTML = kpis.map(function(f){
+      var v = ov[f.key];
+      var color = v===null?"#94A3B8":v>=0.8?"var(--color-success)":v>=0.5?"var(--color-warning)":"var(--color-danger)";
+      return "<div class='guide-card' style='flex:1;text-align:center;'>" +
+        "<div class='guide-step' style='background:"+color+";font-size:1.3rem;'>"+pct(v)+"</div>" +
+        "<div class='guide-title'>"+f.label+"</div></div>";
+    }).join("");
+
+    // Radar chart
+    var overall = FACILITIES.map(function(f){ return Math.round((ov[f.key]||0)*100); });
+    if(radarChart) radarChart.destroy();
+    radarChart = new Chart(document.getElementById("infra-radar"),{
+      type:"radar",
+      data:{labels:FACILITIES.map(function(f){return f.label;}),datasets:[{
+        label:"Ketersediaan (%)",data:overall,
+        backgroundColor:"rgba(59,130,246,0.2)",borderColor:"#3B82F6",
+        pointBackgroundColor:"#3B82F6",borderWidth:2,pointRadius:4
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{r:{min:0,max:100,ticks:{stepSize:25,font:{size:10}},
+          pointLabels:{font:{size:10}}}},
+        plugins:{legend:{display:false}}}
+    });
+
+    // Campus table
+    var tbody = document.getElementById("infra-campus-tbody");
+    var campuses = d.by_campus||[];
+    if(campuses.length===0){
+      tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;color:var(--color-text-muted);padding:2rem;'>Belum ada laporan. Tambahkan laporan pertama di bawah.</td></tr>";
+    } else {
+      tbody.innerHTML = campuses.map(function(c){
+        function cell(v){ var color=v>=0.8?"#10B981":v>=0.5?"#F59E0B":"#EF4444"; return "<td class='numeric' style='color:"+color+";font-weight:600;'>"+pct(v)+"</td>"; }
+        return "<tr><td><strong>"+esc(c.campus)+"</strong></td><td class='numeric'>"+c.total_reports+"</td>"+
+          cell(c.electricity)+cell(c.internet)+cell(c.computers)+cell(c.disability_access)+cell(c.safe_environment)+"</tr>";
+      }).join("");
+    }
+  }
+
+  // Submit
+  document.getElementById("infra-submit").addEventListener("click",function(){
+    var campus = document.getElementById("infra-campus").value.trim();
+    var fb = document.getElementById("infra-submit-feedback");
+    if(!campus){
+      fb.textContent="Nama kampus wajib diisi."; fb.style.background="#FEE2E2"; fb.style.color="#991B1B"; fb.style.display="block"; return;
+    }
+    var payload = {
+      campus:campus, faculty:document.getElementById("infra-faculty").value.trim()||null,
+      electricity:document.getElementById("infra-electricity").checked,
+      clean_water:document.getElementById("infra-water").checked,
+      sanitation:document.getElementById("infra-sanitation").checked,
+      separate_wc:document.getElementById("infra-wc").checked,
+      computers:document.getElementById("infra-computers").checked,
+      internet:document.getElementById("infra-internet").checked,
+      disability_access:document.getElementById("infra-disability").checked,
+      safe_environment:document.getElementById("infra-safe").checked,
+      notes:document.getElementById("infra-notes").value.trim()||null,
+    };
+    fetch("/konselor/api/infrastructure",{
+      method:"POST",credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},
+      body:JSON.stringify(payload)
+    }).then(function(r){return r.json();}).then(function(j){
+      if(j.status==="success"){
+        fb.textContent="Laporan berhasil dikirim! (ID: "+j.report_id+")"; fb.style.background="#D1FAE5"; fb.style.color="#065F46";
+        fb.style.display="block";
+        setTimeout(load,1000);
+      } else {
+        fb.textContent=j.message||"Gagal."; fb.style.background="#FEE2E2"; fb.style.color="#991B1B"; fb.style.display="block";
+      }
+    });
+  });
+
+  document.getElementById("infra-refresh").addEventListener("click",load);
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",load);
+  else load();
+})();
+</script>
+{% endblock %}

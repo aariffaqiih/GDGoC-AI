@@ -1,0 +1,269 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Tren Wellbeing & Efektivitas — SDG 4.a & 4.1{% endblock %}
+
+{% block counselor_content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">SDG 4.a & 4.1 — Tren & Bukti Dampak</div>
+    <h1 class="hero-title">Tren Wellbeing & Efektivitas Intervensi</h1>
+    <p class="hero-desc">
+      Grafik time-series stres kolektif mingguan, tren efektivitas intervensi bulanan,
+      dan heatmap efektivitas per jenis intervensi × tingkat risiko.
+    </p>
+  </div>
+</div>
+
+{# ── Section 1: Wellbeing Trend ── #}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header">
+    <h2 class="card-title">Tren Wellbeing Mingguan (SDG 4.a)</h2>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+      <label style="font-size:0.85rem;color:var(--color-text-secondary);">Minggu:</label>
+      <select id="wb-weeks" class="form-control" style="width:80px;font-size:0.85rem;">
+        <option value="4">4</option>
+        <option value="8" selected>8</option>
+        <option value="12">12</option>
+        <option value="24">24</option>
+      </select>
+      <button class="btn btn-sm btn-outline" id="wb-refresh">Refresh</button>
+    </div>
+  </div>
+  <div id="wb-loading" style="padding:2rem;text-align:center;color:var(--color-text-muted);">Memuat…</div>
+  <div id="wb-empty" style="display:none;padding:2rem;text-align:center;color:var(--color-text-muted);">
+    Belum ada cukup data prediksi untuk menampilkan tren mingguan.
+  </div>
+  <div id="wb-chart-wrap" style="display:none;padding:1rem;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div>
+        <div style="font-size:0.85rem;font-weight:600;color:var(--color-text-secondary);margin-bottom:0.5rem;">
+          Rata-rata Tingkat Stres per Minggu (skala 1–3)
+        </div>
+        <div style="position:relative;height:200px;"><canvas id="wb-stress-chart"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:0.85rem;font-weight:600;color:var(--color-text-secondary);margin-bottom:0.5rem;">
+          Jumlah Prediksi Risiko Tinggi per Minggu
+        </div>
+        <div style="position:relative;height:200px;"><canvas id="wb-highrisk-chart"></canvas></div>
+      </div>
+    </div>
+    <div style="font-size:0.775rem;color:var(--color-text-muted);margin-top:0.5rem;" id="wb-ts"></div>
+  </div>
+</div>
+
+{# ── Section 2: Intervention Monthly Trend ── #}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header">
+    <h2 class="card-title">Tren Efektivitas Intervensi Bulanan (SDG 4.1)</h2>
+    <span style="font-size:0.8rem;color:var(--color-text-muted);">
+      Rata-rata penurunan p_dropout (pp) per bulan, 12 bulan terakhir
+    </span>
+  </div>
+  <div id="trend-loading" style="padding:2rem;text-align:center;color:var(--color-text-muted);">Memuat…</div>
+  <div id="trend-empty" style="display:none;padding:2rem;text-align:center;color:var(--color-text-muted);">
+    Belum ada data intervensi yang terevaluasi untuk ditampilkan.
+  </div>
+  <div id="trend-chart-wrap" style="display:none;padding:1rem;">
+    <div style="position:relative;height:220px;"><canvas id="trend-monthly-chart"></canvas></div>
+    <div style="font-size:0.775rem;color:var(--color-text-muted);margin-top:0.5rem;" id="trend-ts"></div>
+  </div>
+</div>
+
+{# ── Section 3: Heatmap Intervention Type × Risk Level ── #}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header">
+    <h2 class="card-title">Heatmap: Efektivitas per Jenis Intervensi × Tingkat Risiko</h2>
+    <span style="font-size:0.8rem;color:var(--color-text-muted);">
+      Nilai = rata-rata penurunan p_dropout (pp). Semakin hijau = semakin efektif.
+    </span>
+  </div>
+  <div id="heatmap-empty" style="display:none;padding:2rem;text-align:center;color:var(--color-text-muted);">
+    Belum ada data untuk heatmap.
+  </div>
+  <div id="heatmap-wrap" style="display:none;padding:1rem;overflow-x:auto;">
+    <table class="result-table" id="heatmap-table" style="min-width:400px;"></table>
+    <div style="font-size:0.8rem;margin-top:0.75rem;color:var(--color-text-muted);">
+      ● Angka dalam sel = rata-rata penurunan p_dropout (poin persen). N = jumlah kasus.
+    </div>
+  </div>
+</div>
+
+{# ── Section 4: Mentor Effectiveness ── #}
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Efektivitas Program Mentoring vs Non-Mentoring</h2>
+  </div>
+  <div id="mentor-eff-loading" style="padding:2rem;text-align:center;color:var(--color-text-muted);">Memuat…</div>
+  <div id="mentor-eff-content" style="display:none;padding:1rem;">
+    <div class="batch-guide-row" style="margin-bottom:1rem;">
+      <div class="guide-card" style="flex:1;text-align:center;">
+        <div class="guide-step" id="me-mentored" style="background:var(--color-primary);">—</div>
+        <div class="guide-title">Mahasiswa Didampingi Mentor</div>
+      </div>
+      <div class="guide-card" style="flex:1;text-align:center;">
+        <div class="guide-step" id="me-delta-m" style="background:var(--color-success);">—</div>
+        <div class="guide-title">Avg Penurunan Risiko (Mentored)</div>
+        <div class="guide-desc">Dalam percentage points</div>
+      </div>
+      <div class="guide-card" style="flex:1;text-align:center;">
+        <div class="guide-step" id="me-delta-u" style="background:var(--color-warning);">—</div>
+        <div class="guide-title">Avg Penurunan Risiko (Non-Mentored)</div>
+      </div>
+    </div>
+    <div id="me-note" style="padding:0.75rem 1rem;border-radius:var(--radius-md);font-size:0.875rem;
+      background:var(--color-primary-light);margin-bottom:1rem;"></div>
+    <div style="font-size:0.9rem;font-weight:600;color:var(--color-text-secondary);margin-bottom:0.75rem;">
+      Statistik per Mentor
+    </div>
+    <div class="table-wrap">
+      <table class="result-table">
+        <thead>
+          <tr><th>Nama</th><th>NIM</th><th>Total Mentee</th>
+          <th>Sesi Selesai</th><th>Avg Rating</th></tr>
+        </thead>
+        <tbody id="me-mentor-tbody"></tbody>
+      </table>
+    </div>
+    <div style="font-size:0.775rem;color:var(--color-text-muted);margin-top:0.5rem;" id="me-ts"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block counselor_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+  var charts = {};
+
+  function esc(s){ return String(s||"").replace(/[&<>]/g,function(m){return m==="&"?"&amp;":m==="<"?"&lt;":"&gt;";}); }
+
+  // ── Wellbeing Trend ────────────────────────────────────────────────────────
+  function loadWellbeing() {
+    var weeks = document.getElementById("wb-weeks").value;
+    document.getElementById("wb-loading").style.display="block";
+    document.getElementById("wb-chart-wrap").style.display="none";
+    document.getElementById("wb-empty").style.display="none";
+    fetch("/konselor/api/wellbeing-trend?weeks="+weeks,{credentials:"same-origin"})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        document.getElementById("wb-loading").style.display="none";
+        if(j.status!=="success"||!j.data.labels.length){
+          document.getElementById("wb-empty").style.display="block"; return;
+        }
+        var d = j.data;
+        document.getElementById("wb-chart-wrap").style.display="block";
+        if(charts.stress) charts.stress.destroy();
+        charts.stress = new Chart(document.getElementById("wb-stress-chart"),{
+          type:"line",
+          data:{labels:d.labels,datasets:[{
+            label:"Avg Stres",data:d.avg_stress,
+            borderColor:"#F59E0B",backgroundColor:"rgba(245,158,11,0.1)",
+            borderWidth:2,pointRadius:4,tension:0.3,fill:true
+          }]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+            scales:{y:{min:1,max:3,ticks:{stepSize:0.5}},x:{ticks:{font:{size:10},maxRotation:45}}}}
+        });
+        if(charts.highrisk) charts.highrisk.destroy();
+        charts.highrisk = new Chart(document.getElementById("wb-highrisk-chart"),{
+          type:"bar",
+          data:{labels:d.labels,datasets:[{
+            label:"Risiko Tinggi",data:d.high_risk_count,
+            backgroundColor:"#EF4444",borderRadius:4
+          }]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+            scales:{y:{beginAtZero:true,ticks:{stepSize:1}},x:{ticks:{font:{size:10},maxRotation:45}}}}
+        });
+        document.getElementById("wb-ts").textContent="Diperbarui: "+(d.computed_at||"—");
+      })
+      .catch(function(){document.getElementById("wb-loading").textContent="Gagal memuat.";});
+  }
+
+  // ── Intervention Trend ─────────────────────────────────────────────────────
+  function loadTrend() {
+    fetch("/konselor/api/intervention-trend",{credentials:"same-origin"})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        document.getElementById("trend-loading").style.display="none";
+        if(j.status!=="success"||!j.data.monthly_trend.labels.length){
+          document.getElementById("trend-empty").style.display="block"; return;
+        }
+        var d = j.data;
+        document.getElementById("trend-chart-wrap").style.display="block";
+        var mt = d.monthly_trend;
+        if(charts.monthly) charts.monthly.destroy();
+        charts.monthly = new Chart(document.getElementById("trend-monthly-chart"),{
+          type:"line",
+          data:{labels:mt.labels,datasets:[{
+            label:"Avg Penurunan (pp)",data:mt.avg_delta_pct,
+            borderColor:"#10B981",backgroundColor:"rgba(16,185,129,0.1)",
+            borderWidth:2,pointRadius:5,tension:0.3,fill:true
+          }]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+            scales:{x:{ticks:{font:{size:11}}},
+              y:{title:{display:true,text:"Delta p_dropout (pp)"},
+                ticks:{callback:function(v){return v.toFixed(1)+"pp";}}}}}
+        });
+        document.getElementById("trend-ts").textContent="Diperbarui: "+(d.computed_at||"—");
+
+        // Heatmap
+        var hm = d.heatmap_by_type_and_risk||{};
+        var types = Object.keys(hm);
+        if(types.length===0){document.getElementById("heatmap-empty").style.display="block";return;}
+        document.getElementById("heatmap-wrap").style.display="block";
+        var risks=["tinggi","sedang","rendah"];
+        var html="<thead><tr><th>Jenis Intervensi</th>"+risks.map(function(r){return "<th>"+r+"</th>";}).join("")+"</tr></thead><tbody>";
+        types.forEach(function(t){
+          html+="<tr><td><strong>"+esc(t.replace(/_/g," "))+"</strong></td>";
+          risks.forEach(function(r){
+            var cell=hm[t]&&hm[t][r];
+            if(!cell){html+="<td style='color:var(--color-text-muted);text-align:center;'>—</td>";return;}
+            var v=cell.avg_delta_pct;
+            var bg=v>10?"#D1FAE5":v>5?"#FEF3C7":v>0?"#FFF":v<0?"#FEE2E2":"#F8FAFC";
+            var color=v>5?"#065F46":v>0?"#92400E":v<0?"#991B1B":"#475569";
+            html+="<td style='text-align:center;background:"+bg+";color:"+color+";font-weight:600;'>"+
+              v.toFixed(1)+"pp<br><span style='font-size:0.7rem;font-weight:400;'>(n="+cell.n_cases+")</span></td>";
+          });
+          html+="</tr>";
+        });
+        html+="</tbody>";
+        document.getElementById("heatmap-table").innerHTML=html;
+      })
+      .catch(function(){document.getElementById("trend-loading").textContent="Gagal memuat.";});
+  }
+
+  // ── Mentor Effectiveness ───────────────────────────────────────────────────
+  function loadMentorEff() {
+    fetch("/konselor/api/mentor-effectiveness",{credentials:"same-origin"})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        document.getElementById("mentor-eff-loading").style.display="none";
+        if(j.status!=="success"){return;}
+        var d=j.data;
+        document.getElementById("mentor-eff-content").style.display="block";
+        document.getElementById("me-mentored").textContent=d.mentored_count||0;
+        document.getElementById("me-delta-m").textContent=d.avg_delta_pct_mentored!==null?(d.avg_delta_pct_mentored.toFixed(1)+"pp"):"—";
+        document.getElementById("me-delta-u").textContent=d.avg_delta_pct_unmentored!==null?(d.avg_delta_pct_unmentored.toFixed(1)+"pp"):"—";
+        document.getElementById("me-note").textContent=d.parity_note||"Belum ada cukup data untuk perbandingan.";
+        var tbody=document.getElementById("me-mentor-tbody");
+        var stats=d.mentor_stats||[];
+        tbody.innerHTML=stats.length?stats.map(function(m,i){
+          return "<tr><td><strong>"+esc(m.name)+"</strong></td><td>"+esc(m.nim)+"</td>"+
+            "<td class='numeric'>"+m.total_mentees+"</td>"+
+            "<td class='numeric'>"+m.done_sessions+"</td>"+
+            "<td class='numeric'>"+(m.avg_rating?m.avg_rating+"/5":"—")+"</td></tr>";
+        }).join(""):"<tr><td colspan='5' style='text-align:center;color:var(--color-text-muted);'>Belum ada mentor aktif.</td></tr>";
+        document.getElementById("me-ts").textContent="Diperbarui: "+(d.computed_at||"—");
+      })
+      .catch(function(){document.getElementById("mentor-eff-loading").textContent="Gagal memuat.";});
+  }
+
+  document.getElementById("wb-refresh").addEventListener("click",loadWellbeing);
+  document.getElementById("wb-weeks").addEventListener("change",loadWellbeing);
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",function(){loadWellbeing();loadTrend();loadMentorEff();});
+  } else { loadWellbeing(); loadTrend(); loadMentorEff(); }
+})();
+</script>
+{% endblock %}

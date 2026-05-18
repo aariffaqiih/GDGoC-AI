@@ -1,0 +1,364 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Mentor & Peer Support — SDG 4.a{% endblock %}
+
+{% block counselor_content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">SDG 4.a — Lingkungan Belajar Inklusif</div>
+    <h1 class="hero-title">Peer Support & Mentoring</h1>
+    <p class="hero-desc">
+      Kelola program mentoring sukarelawan (mahasiswa senior / alumni).
+      Auto-match mahasiswa berisiko dengan mentor yang tersedia.
+    </p>
+  </div>
+</div>
+
+{# ── Tab navigation ── #}
+<div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; border-bottom:1px solid var(--color-border); padding-bottom:0;">
+  <button class="mentor-tab is-active" data-tab="mentors">Daftar Mentor</button>
+  <button class="mentor-tab" data-tab="sessions">Riwayat Sesi</button>
+  <button class="mentor-tab" data-tab="add">Daftar Mentor Baru</button>
+</div>
+
+{# ── Tab: Daftar Mentor ── #}
+<div id="tab-mentors">
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Mentor Aktif</h2>
+      <button class="btn btn-sm btn-outline" id="btn-refresh-mentors">Refresh</button>
+    </div>
+    <div id="mentors-loading" style="padding:2rem; text-align:center; color:var(--color-text-muted);">Memuat…</div>
+    <div class="table-wrap" id="mentors-table-wrap" style="display:none;">
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Nama</th><th>NIM</th><th>Jurusan</th>
+            <th>Maks Mentee</th><th>Sesi Total</th><th>Sesi Selesai</th><th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="mentors-tbody"></tbody>
+      </table>
+    </div>
+    <div id="mentors-empty" style="padding:3rem; text-align:center; color:var(--color-text-muted); display:none;">
+      <p>Belum ada mentor terdaftar.</p>
+      <p style="font-size:0.875rem;">Klik tab "Daftar Mentor Baru" untuk mendaftarkan mentor pertama.</p>
+    </div>
+  </div>
+</div>
+
+{# ── Tab: Riwayat Sesi ── #}
+<div id="tab-sessions" style="display:none;">
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Riwayat Sesi Mentoring</h2>
+      <button class="btn btn-sm btn-outline" id="btn-refresh-sessions">Refresh</button>
+    </div>
+    <div id="sessions-loading" style="padding:2rem; text-align:center; color:var(--color-text-muted);">Memuat…</div>
+    <div class="table-wrap" id="sessions-table-wrap" style="display:none;">
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th><th>Mentor</th><th>Mentee NIM</th><th>Mentee Nama</th>
+            <th>Status</th><th>Rating</th><th>Catatan</th><th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="sessions-tbody"></tbody>
+      </table>
+    </div>
+    <div id="sessions-empty" style="padding:3rem; text-align:center; color:var(--color-text-muted); display:none;">
+      Belum ada sesi mentoring.
+    </div>
+  </div>
+</div>
+
+{# ── Tab: Daftar Mentor Baru ── #}
+<div id="tab-add" style="display:none;">
+  <div class="card" style="max-width:560px;">
+    <div class="card-header"><h2 class="card-title">Daftarkan Mentor Baru</h2></div>
+    <div style="padding:1rem;">
+      <div id="add-feedback" style="display:none; padding:0.75rem 1rem; border-radius:var(--radius-md); margin-bottom:1rem; font-size:0.875rem;"></div>
+      <div class="form-group">
+        <label class="form-label">Nama Lengkap *</label>
+        <input type="text" id="add-name" class="form-control" placeholder="Nama mentor" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">NIM *</label>
+        <input type="text" id="add-nim" class="form-control" placeholder="NIM mentor" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Program Studi</label>
+        <input type="text" id="add-major" class="form-control" placeholder="Contoh: Teknik Informatika" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Maksimal Mentee</label>
+        <input type="number" id="add-max" class="form-control" value="3" min="1" max="10" style="width:100px;" />
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-add-mentor">Daftarkan Mentor</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Modal Update Sesi ── #}
+<div id="session-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:300; align-items:center; justify-content:center;">
+  <div style="background:var(--color-surface); border-radius:var(--radius-xl); padding:1.5rem; max-width:400px; width:90%; box-shadow:var(--shadow-lg);">
+    <h3 style="margin:0 0 1rem; font-size:1rem;">Update Sesi Mentoring</h3>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select id="modal-status" class="form-control">
+        <option value="scheduled">Dijadwal</option>
+        <option value="done">Selesai</option>
+        <option value="cancelled">Dibatalkan</option>
+      </select>
+    </div>
+    <div class="form-group" id="modal-rating-group">
+      <label class="form-label">Rating (1–5)</label>
+      <input type="number" id="modal-rating" class="form-control" min="1" max="5" style="width:80px;" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Catatan</label>
+      <textarea id="modal-notes" class="form-control" rows="3"></textarea>
+    </div>
+    <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+      <button class="btn btn-primary btn-sm" id="modal-save">Simpan</button>
+      <button class="btn btn-outline btn-sm" id="modal-cancel">Batal</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.mentor-tab {
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  font-family: var(--font);
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+.mentor-tab:hover { color: var(--color-primary); }
+.mentor-tab.is-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+</style>
+
+{% endblock %}
+
+{% block counselor_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+
+  var activeSessionId = null;
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  document.querySelectorAll(".mentor-tab").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      document.querySelectorAll(".mentor-tab").forEach(function(b) { b.classList.remove("is-active"); });
+      btn.classList.add("is-active");
+      ["tab-mentors", "tab-sessions", "tab-add"].forEach(function(id) {
+        document.getElementById(id).style.display = "none";
+      });
+      document.getElementById("tab-" + btn.dataset.tab).style.display = "";
+      if (btn.dataset.tab === "sessions") loadSessions();
+    });
+  });
+
+  // ── Escape HTML ────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s || "").replace(/[&<>]/g, function(m) {
+      return m === "&" ? "&amp;" : m === "<" ? "&lt;" : "&gt;";
+    });
+  }
+
+  // ── Load Mentors ───────────────────────────────────────────────────────────
+  function loadMentors() {
+    document.getElementById("mentors-loading").style.display = "block";
+    document.getElementById("mentors-table-wrap").style.display = "none";
+    document.getElementById("mentors-empty").style.display = "none";
+
+    fetch("/konselor/api/mentors", { credentials: "same-origin" })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        document.getElementById("mentors-loading").style.display = "none";
+        if (!j.data || j.data.length === 0) {
+          document.getElementById("mentors-empty").style.display = "block";
+          return;
+        }
+        var tbody = document.getElementById("mentors-tbody");
+        tbody.innerHTML = j.data.map(function(m, i) {
+          return "<tr>" +
+            "<td class='numeric'>" + (i+1) + "</td>" +
+            "<td><strong>" + esc(m.name) + "</strong></td>" +
+            "<td>" + esc(m.nim) + "</td>" +
+            "<td>" + esc(m.major || "-") + "</td>" +
+            "<td class='numeric'>" + m.max_mentees + "</td>" +
+            "<td class='numeric'>" + (m.total_sessions || 0) + "</td>" +
+            "<td class='numeric'>" + (m.done_sessions || 0) + "</td>" +
+            "<td><button class='btn btn-sm btn-outline' data-deactivate='" + m.id + "' " +
+              (m.is_active ? "" : "disabled") + ">" +
+              (m.is_active ? "Nonaktifkan" : "Nonaktif") + "</button></td>" +
+            "</tr>";
+        }).join("");
+        document.getElementById("mentors-table-wrap").style.display = "";
+
+        tbody.querySelectorAll("[data-deactivate]").forEach(function(btn) {
+          btn.addEventListener("click", function() {
+            var id = parseInt(btn.dataset.deactivate);
+            if (!confirm("Nonaktifkan mentor ini?")) return;
+            fetch("/konselor/api/mentors/" + id, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+              body: JSON.stringify({ is_active: 0 }),
+              credentials: "same-origin",
+            }).then(function() { loadMentors(); });
+          });
+        });
+      })
+      .catch(function(e) {
+        document.getElementById("mentors-loading").textContent = "Gagal memuat: " + e.message;
+      });
+  }
+
+  // ── Load Sessions ──────────────────────────────────────────────────────────
+  function loadSessions() {
+    document.getElementById("sessions-loading").style.display = "block";
+    document.getElementById("sessions-table-wrap").style.display = "none";
+    document.getElementById("sessions-empty").style.display = "none";
+
+    fetch("/konselor/api/mentor-sessions", { credentials: "same-origin" })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        document.getElementById("sessions-loading").style.display = "none";
+        if (!j.data || j.data.length === 0) {
+          document.getElementById("sessions-empty").style.display = "block";
+          return;
+        }
+        var tbody = document.getElementById("sessions-tbody");
+        tbody.innerHTML = j.data.map(function(s) {
+          var statusColor = s.status === "done" ? "#10B981" : (s.status === "cancelled" ? "#EF4444" : "var(--color-primary)");
+          return "<tr>" +
+            "<td>" + esc(s.session_date ? s.session_date.slice(0,10) : "-") + "</td>" +
+            "<td>" + esc(s.mentor_name) + " (" + esc(s.mentor_nim) + ")</td>" +
+            "<td>" + esc(s.mentee_nim) + "</td>" +
+            "<td>" + esc(s.mentee_nama || "-") + "</td>" +
+            "<td><span style='color:" + statusColor + "; font-weight:600; font-size:0.85rem;'>" + esc(s.status) + "</span></td>" +
+            "<td class='numeric'>" + (s.rating ? s.rating + "/5" : "—") + "</td>" +
+            "<td style='font-size:0.8rem; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;'>" + esc(s.notes || "—") + "</td>" +
+            "<td><button class='btn btn-sm btn-ghost' data-session-id='" + s.id + "' data-status='" + s.status + "'>Edit</button></td>" +
+            "</tr>";
+        }).join("");
+        document.getElementById("sessions-table-wrap").style.display = "";
+
+        tbody.querySelectorAll("[data-session-id]").forEach(function(btn) {
+          btn.addEventListener("click", function() {
+            openModal(parseInt(btn.dataset.sessionId), btn.dataset.status);
+          });
+        });
+      })
+      .catch(function(e) {
+        document.getElementById("sessions-loading").textContent = "Gagal: " + e.message;
+      });
+  }
+
+  // ── Add Mentor ──────────────────────────────────────────────────────────────
+  document.getElementById("btn-add-mentor").addEventListener("click", function() {
+    var name  = document.getElementById("add-name").value.trim();
+    var nim   = document.getElementById("add-nim").value.trim();
+    var major = document.getElementById("add-major").value.trim();
+    var max   = parseInt(document.getElementById("add-max").value) || 3;
+    var fb    = document.getElementById("add-feedback");
+
+    if (!name || !nim) {
+      fb.textContent = "Nama dan NIM wajib diisi.";
+      fb.style.display = "block";
+      fb.style.background = "#FEE2E2";
+      fb.style.color = "#991B1B";
+      return;
+    }
+
+    fetch("/konselor/api/mentors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify({ name: name, nim: nim, major: major || null, max_mentees: max }),
+      credentials: "same-origin",
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (j.status === "success") {
+          fb.textContent = "Mentor berhasil didaftarkan! (ID: " + j.mentor_id + ")";
+          fb.style.background = "#D1FAE5";
+          fb.style.color = "#065F46";
+          fb.style.display = "block";
+          document.getElementById("add-name").value = "";
+          document.getElementById("add-nim").value = "";
+          document.getElementById("add-major").value = "";
+        } else {
+          fb.textContent = j.message || "Gagal mendaftarkan mentor.";
+          fb.style.background = "#FEE2E2";
+          fb.style.color = "#991B1B";
+          fb.style.display = "block";
+        }
+      });
+  });
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  function openModal(sessionId, currentStatus) {
+    activeSessionId = sessionId;
+    document.getElementById("modal-status").value = currentStatus;
+    document.getElementById("modal-rating").value = "";
+    document.getElementById("modal-notes").value = "";
+    var overlay = document.getElementById("session-modal-overlay");
+    overlay.style.display = "flex";
+  }
+
+  document.getElementById("modal-cancel").addEventListener("click", function() {
+    document.getElementById("session-modal-overlay").style.display = "none";
+    activeSessionId = null;
+  });
+
+  document.getElementById("modal-save").addEventListener("click", function() {
+    if (!activeSessionId) return;
+    var payload = {
+      status: document.getElementById("modal-status").value,
+      notes:  document.getElementById("modal-notes").value.trim() || undefined,
+    };
+    var rating = parseInt(document.getElementById("modal-rating").value);
+    if (!isNaN(rating) && rating >= 1 && rating <= 5) payload.rating = rating;
+
+    fetch("/konselor/api/mentor-sessions/" + activeSessionId, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify(payload),
+      credentials: "same-origin",
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        document.getElementById("session-modal-overlay").style.display = "none";
+        activeSessionId = null;
+        if (j.status === "success") loadSessions();
+        else alert("Gagal update: " + (j.message || ""));
+      });
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function getCsrf() {
+    var m = document.querySelector('meta[name="csrf-token"]');
+    return m ? m.getAttribute("content") : "";
+  }
+
+  document.getElementById("btn-refresh-mentors").addEventListener("click", loadMentors);
+  document.getElementById("btn-refresh-sessions").addEventListener("click", loadSessions);
+
+  // Boot
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadMentors);
+  else loadMentors();
+})();
+</script>
+{% endblock %}

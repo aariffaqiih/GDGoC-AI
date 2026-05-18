@@ -1,0 +1,435 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Efektivitas Intervensi — Konselor{% endblock %}
+
+{% block counselor_content %}
+
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Efektivitas Intervensi</div>
+    <h1 class="hero-title">Bukti Dampak Konseling</h1>
+    <p class="hero-desc">
+      Analisis perubahan probabilitas dropout sebelum dan sesudah konseling.
+      Data ini membuktikan efektivitas intervensi dan dapat digunakan untuk
+      laporan akreditasi BAN-PT atau publikasi ilmiah.
+    </p>
+  </div>
+</div>
+
+<div class="an-kpi-row">
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" id="total-count" style="color: var(--color-primary);">-</div>
+    <div class="an-kpi-label">Kasus Dianalisis</div>
+    <div class="an-kpi-sub">Sesi konseling selesai dengan data pre/post</div>
+  </div>
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" id="avg-improvement" style="color: var(--color-success);">-</div>
+    <div class="an-kpi-label">Rata-rata Penurunan Risiko</div>
+    <div class="an-kpi-sub">(p_dropout turun)</div>
+  </div>
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" id="improved-count" style="color: var(--color-success);">-</div>
+    <div class="an-kpi-label">Membaik</div>
+    <div class="an-kpi-sub">p_dropout turun > 0.5%</div>
+  </div>
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" id="worsened-count" style="color: var(--color-danger);">-</div>
+    <div class="an-kpi-label">Memburuk</div>
+    <div class="an-kpi-sub">p_dropout naik > 0.5%</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="card-header">
+    <h2 class="card-title">Filter</h2>
+  </div>
+  <div style="padding: 0 1rem 1rem 1rem;">
+    <div class="form-group" style="display: inline-block; width: auto; margin-right: 1rem;">
+      <label class="form-label" for="days-after">Jarak maksimal prediksi setelah konseling (hari)</label>
+      <input type="number" id="days-after" class="form-control" value="30" min="1" max="365" style="width: 100px;">
+    </div>
+    <button id="btn-refresh" class="btn btn-primary btn-sm">Refresh Data</button>
+  </div>
+</div>
+
+<div id="loading" class="an-state-box" style="min-height: 200px;">
+  <div class="an-spinner"></div>
+  <p>Memuat data efektivitas intervensi…</p>
+</div>
+
+<div id="error" class="an-state-box" style="display:none; min-height: 200px;">
+  <p style="color:var(--color-danger);">Gagal memuat data.</p>
+  <button class="btn btn-outline btn-sm" id="retry-btn">Coba Lagi</button>
+</div>
+
+<div id="content" style="display:none;">
+  <div class="an-section">
+    <div class="an-grid-2">
+      <div class="an-card">
+        <div class="an-card-title">Distribusi Perubahan Risiko</div>
+        <div class="an-card-subtitle">Perubahan p_dropout setelah konseling (persentase poin)</div>
+        <div class="an-chart-wrap" style="height: 300px;">
+          <canvas id="distribution-chart"></canvas>
+        </div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-title">Ringkasan Statistik</div>
+        <div id="summary-stats" style="font-size: 14px; line-height: 2;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="an-section">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Daftar Kasus Konseling</h2>
+        <div class="result-actions-row">
+          <button id="btn-export-csv" class="btn btn-sm btn-outline">Ekspor CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="result-table" id="details-table">
+          <thead>
+            <tr>
+              <th>Tanggal Selesai</th>
+              <th>NIM</th>
+              <th>Nama</th>
+              <th>p_dropout Sebelum</th>
+              <th>p_dropout Sesudah</th>
+              <th>Perubahan</th>
+              <th>Status</th>
+              <th>Hari ke prediksi</th>
+            </tr>
+          </thead>
+          <tbody id="details-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* reuse analytics styles */
+.an-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 2rem;
+}
+.an-kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.an-kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.an-kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.an-kpi-sub {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+.an-section {
+  margin-bottom: 2rem;
+}
+.an-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.an-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.an-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 2px;
+}
+.an-card-subtitle {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+.an-chart-wrap {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+.an-state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  gap: 12px;
+  color: var(--color-text-tertiary);
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.an-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.result-table th {
+  background: linear-gradient(180deg, var(--color-surface-alt), var(--color-surface));
+  color: var(--color-text-secondary);
+  font-weight: 700;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+.result-table td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+.risk-tag {
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-block;
+}
+.risk-tag.membaik {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+.risk-tag.memburuk {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+.risk-tag.tidak-berubah {
+  background: var(--color-border);
+  color: var(--color-text-tertiary);
+}
+</style>
+
+{% endblock %}
+
+{% block counselor_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+        referrerpolicy="no-referrer"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+
+  let currentData = null;
+  let distributionChart = null;
+
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute("content") : "";
+  }
+
+  function formatPercent(value, isChange = false) {
+    if (value === undefined || value === null) return "-";
+    var num = parseFloat(value);
+    if (isChange) {
+      return (num * 100).toFixed(1) + " pp";
+    }
+    return (num * 100).toFixed(1) + "%";
+  }
+
+  function loadData() {
+    var loading = document.getElementById("loading");
+    var errorDiv = document.getElementById("error");
+    var content = document.getElementById("content");
+    var daysAfter = parseInt(document.getElementById("days-after").value, 10);
+    if (isNaN(daysAfter) || daysAfter < 1) daysAfter = 30;
+
+    loading.style.display = "flex";
+    errorDiv.style.display = "none";
+    content.style.display = "none";
+
+    fetch("/konselor/api/intervention-effectiveness?days_after=" + daysAfter)
+      .then(function(res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function(json) {
+        if (json.status === "error") throw new Error(json.message);
+        currentData = json.data;
+        renderUI(currentData);
+        loading.style.display = "none";
+        content.style.display = "block";
+      })
+      .catch(function(err) {
+        loading.style.display = "none";
+        errorDiv.style.display = "flex";
+        console.error(err);
+      });
+  }
+
+  function renderUI(data) {
+    var summary = data.summary;
+    document.getElementById("total-count").textContent = summary.total_counseling_analyzed;
+    var avgImprovement = summary.avg_improvement;
+    var avgPercent = (avgImprovement * 100).toFixed(1);
+    var avgColor = avgImprovement > 0 ? "var(--color-success)" : (avgImprovement < 0 ? "var(--color-danger)" : "var(--color-text)");
+    var avgEl = document.getElementById("avg-improvement");
+    avgEl.textContent = (avgImprovement >= 0 ? "↓ " : "↑ ") + Math.abs(avgPercent) + "%";
+    avgEl.style.color = avgColor;
+    document.getElementById("improved-count").textContent = summary.improved_count;
+    document.getElementById("worsened-count").textContent = summary.worsened_count;
+
+    // Summary stats
+    var statsHtml = `
+      <p><strong>Rata-rata perubahan:</strong> ${avgPercent} poin persentase (${avgImprovement >= 0 ? "turun" : "naik"})</p>
+      <p><strong>Median perubahan:</strong> ${(summary.median_improvement * 100).toFixed(1)} poin persentase</p>
+      <p><strong>Jangka waktu analisis:</strong> maksimal ${summary.days_after_limit} hari setelah konseling</p>
+      <p><strong>Kasus membaik:</strong> ${summary.improved_count} (${((summary.improved_count/summary.total_counseling_analyzed)*100).toFixed(1)}%)</p>
+      <p><strong>Kasus memburuk:</strong> ${summary.worsened_count} (${((summary.worsened_count/summary.total_counseling_analyzed)*100).toFixed(1)}%)</p>
+      <p><strong>Tidak berubah signifikan:</strong> ${summary.no_change_count} (${((summary.no_change_count/summary.total_counseling_analyzed)*100).toFixed(1)}%)</p>
+    `;
+    document.getElementById("summary-stats").innerHTML = statsHtml;
+
+    // Distribution chart
+    var improvements = data.details.map(function(d) { return d.improvement; });
+    if (distributionChart) distributionChart.destroy();
+    var ctx = document.getElementById("distribution-chart").getContext("2d");
+    // Create histogram bins
+    var bins = [-0.3, -0.2, -0.1, -0.05, -0.01, 0, 0.01, 0.05, 0.1, 0.2, 0.3];
+    var labels = ["< -30%", "-30% s/d -20%", "-20% s/d -10%", "-10% s/d -5%", "-5% s/d -1%", "-1% s/d 0%", "0% s/d 1%", "1% s/d 5%", "5% s/d 10%", "10% s/d 20%", "> 20%"];
+    var counts = new Array(bins.length).fill(0);
+    improvements.forEach(function(imp) {
+      for (var i = 0; i < bins.length; i++) {
+        if (imp < bins[i]) {
+          counts[i]++;
+          return;
+        }
+      }
+      counts[bins.length-1]++;
+    });
+    distributionChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Jumlah kasus",
+          data: counts,
+          backgroundColor: "#10b981aa",
+          borderColor: "#10b981",
+          borderWidth: 1,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        }
+      }
+    });
+
+    // Table
+    var tbody = document.getElementById("details-tbody");
+    tbody.innerHTML = "";
+    data.details.forEach(function(d) {
+      var tr = document.createElement("tr");
+      var statusText = "";
+      var statusClass = "";
+      if (d.improved === true) {
+        statusText = "Membaik";
+        statusClass = "membaik";
+      } else if (d.improved === false) {
+        statusText = "Memburuk";
+        statusClass = "memburuk";
+      } else {
+        statusText = "Tidak berubah";
+        statusClass = "tidak-berubah";
+      }
+      tr.innerHTML = `
+        <td>${d.completed_at ? d.completed_at.slice(0,10) : "-"}</td>
+        <td>${escapeHtml(d.student_nim)}</td>
+        <td>${escapeHtml(d.student_name)}</td>
+        <td class="numeric">${formatPercent(d.before_p_dropout)}</td>
+        <td class="numeric">${formatPercent(d.after_p_dropout)}</td>
+        <td class="numeric">${formatPercent(d.improvement, true)}</td>
+        <td><span class="risk-tag ${statusClass}">${statusText}</span></td>
+        <td class="numeric">${d.days_to_after_prediction !== null ? d.days_to_after_prediction + " hari" : "-"}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === "&") return "&amp;";
+      if (m === "<") return "&lt;";
+      if (m === ">") return "&gt;";
+      return m;
+    });
+  }
+
+  function exportCSV() {
+    if (!currentData || !currentData.details.length) return;
+    var rows = currentData.details;
+    var csvRows = [["Tanggal Selesai", "NIM", "Nama", "p_dropout Sebelum (%)", "p_dropout Sesudah (%)", "Perubahan (pp)", "Status", "Hari ke prediksi"]];
+    rows.forEach(function(r) {
+      var status = r.improved === true ? "Membaik" : (r.improved === false ? "Memburuk" : "Tidak berubah");
+      csvRows.push([
+        r.completed_at ? r.completed_at.slice(0,10) : "",
+        r.student_nim,
+        r.student_name,
+        (r.before_p_dropout * 100).toFixed(1),
+        (r.after_p_dropout * 100).toFixed(1),
+        (r.improvement * 100).toFixed(1),
+        status,
+        r.days_to_after_prediction !== null ? r.days_to_after_prediction : ""
+      ]);
+    });
+    var csvContent = csvRows.map(row => row.join(",")).join("\n");
+    var blob = new Blob(["\uFEFF" + csvContent], {type: "text/csv;charset=utf-8;"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "efektivitas_intervensi.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("btn-refresh").addEventListener("click", loadData);
+  document.getElementById("retry-btn").addEventListener("click", loadData);
+  document.getElementById("btn-export-csv").addEventListener("click", exportCSV);
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", loadData);
+  } else {
+    loadData();
+  }
+})();
+</script>
+{% endblock %}

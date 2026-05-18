@@ -1,0 +1,594 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Efektivitas Intervensi — Konselor{% endblock %}
+
+{% block counselor_content %}
+
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">SDG 4.1 — Mutu Pendidikan</div>
+    <h1 class="hero-title">Efektivitas Intervensi Konseling</h1>
+    <p class="hero-desc">
+      Mengukur apakah konseling yang telah dilakukan benar-benar menurunkan risiko dropout mahasiswa.
+      Data dihitung dari selisih prediksi sebelum dan sesudah intervensi (minimal 30 hari).
+    </p>
+  </div>
+</div>
+
+{# ── Loading state ── #}
+<div id="eff-loading" style="text-align:center; padding: 4rem 0; color: var(--color-text-muted);">
+  <div class="btn-loader" style="display:inline-block; margin-bottom:1rem;"></div>
+  <p>Memuat data efektivitas…</p>
+</div>
+
+{# ── Error state ── #}
+<div id="eff-error" class="hidden"
+     style="padding: 2rem; text-align:center; color: var(--color-danger);">
+  <p id="eff-error-msg">Gagal memuat data.</p>
+  <button class="btn btn-outline btn-sm" onclick="loadData()" style="margin-top:1rem;">
+    Coba Lagi
+  </button>
+</div>
+
+{# ── Konten utama (tersembunyi sampai data loaded) ── #}
+<div id="eff-content" class="hidden">
+
+  {# ── Peringatan data tidak cukup ── #}
+  <div id="eff-warning-small-n" class="hidden"
+       style="background:var(--color-warning-light, #FEFCE8);
+              border:1px solid var(--color-warning, #F59E0B);
+              border-radius: var(--radius-md); padding:0.875rem 1rem;
+              margin-bottom:1.5rem; font-size:0.875rem; color:#92400E;">
+    <strong>Peringatan data kecil:</strong>
+    Jumlah sesi yang terevaluasi masih di bawah
+    <span id="eff-min-sample"></span> sesi. Rata-rata yang ditampilkan belum cukup
+    representatif untuk generalisasi.
+  </div>
+
+  {# ── Summary cards ── #}
+  <div class="batch-guide-row" style="margin-bottom:1.5rem;">
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:var(--color-primary); font-size:1.5rem;"
+           id="card-total-evaluated">—</div>
+      <div class="guide-title">Sesi Terevaluasi</div>
+      <div class="guide-desc">Memiliki prediksi sesudah</div>
+    </div>
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:var(--color-success); font-size:1.25rem;"
+           id="card-avg-reduction">—</div>
+      <div class="guide-title">Rata-rata Penurunan Risiko</div>
+      <div class="guide-desc">Dalam percentage points</div>
+    </div>
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:#10B981; font-size:1.5rem;"
+           id="card-improved-pct">—</div>
+      <div class="guide-title">Mahasiswa Membaik</div>
+      <div class="guide-desc">Dari sesi terevaluasi</div>
+    </div>
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:var(--color-warning); font-size:1.5rem;"
+           id="card-pending">—</div>
+      <div class="guide-title">Menunggu Evaluasi</div>
+      <div class="guide-desc">Belum ada prediksi sesudah</div>
+    </div>
+  </div>
+
+  {# ── Dua kolom: chart + breakdown ── #}
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;">
+
+    {# Chart distribusi delta #}
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Distribusi Perubahan Risiko</h2>
+        <span style="font-size:0.8rem; color:var(--color-text-muted);">
+          Negatif = memburuk | Positif = membaik
+        </span>
+      </div>
+      <div style="padding:1rem; position:relative; height:220px;">
+        <canvas id="chart-delta"></canvas>
+      </div>
+    </div>
+
+    {# Breakdown categories #}
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Hasil Berdasarkan Kategori</h2>
+      </div>
+      <div style="padding:1rem;">
+        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+          <div class="eff-cat-row" id="cat-improved">
+            <div class="eff-cat-label">
+              <span class="eff-dot" style="background:#10B981;"></span>
+              Membaik <span class="eff-threshold">(turun &ge; 2pp)</span>
+            </div>
+            <div class="eff-cat-bar-wrap">
+              <div class="eff-cat-bar" id="bar-improved" style="background:#10B981;"></div>
+            </div>
+            <div class="eff-cat-count" id="count-improved">—</div>
+          </div>
+          <div class="eff-cat-row" id="cat-unchanged">
+            <div class="eff-cat-label">
+              <span class="eff-dot" style="background:#94A3B8;"></span>
+              Tidak Berubah <span class="eff-threshold">(&lt; 2pp)</span>
+            </div>
+            <div class="eff-cat-bar-wrap">
+              <div class="eff-cat-bar" id="bar-unchanged" style="background:#94A3B8;"></div>
+            </div>
+            <div class="eff-cat-count" id="count-unchanged">—</div>
+          </div>
+          <div class="eff-cat-row" id="cat-worsened">
+            <div class="eff-cat-label">
+              <span class="eff-dot" style="background:#EF4444;"></span>
+              Memburuk <span class="eff-threshold">(naik &ge; 2pp)</span>
+            </div>
+            <div class="eff-cat-bar-wrap">
+              <div class="eff-cat-bar" id="bar-worsened" style="background:#EF4444;"></div>
+            </div>
+            <div class="eff-cat-count" id="count-worsened">—</div>
+          </div>
+          <div class="eff-cat-row">
+            <div class="eff-cat-label">
+              <span class="eff-dot" style="background:#F59E0B;"></span>
+              Terlalu Baru
+            </div>
+            <div class="eff-cat-bar-wrap">
+              <div class="eff-cat-bar" id="bar-too-recent" style="background:#F59E0B;"></div>
+            </div>
+            <div class="eff-cat-count" id="count-too-recent">—</div>
+          </div>
+          <div class="eff-cat-row">
+            <div class="eff-cat-label">
+              <span class="eff-dot" style="background:#CBD5E1;"></span>
+              Menunggu Prediksi
+            </div>
+            <div class="eff-cat-bar-wrap">
+              <div class="eff-cat-bar" id="bar-pending-followup" style="background:#CBD5E1;"></div>
+            </div>
+            <div class="eff-cat-count" id="count-pending-followup">—</div>
+          </div>
+        </div>
+        <div style="margin-top:1rem; font-size:0.775rem; color:var(--color-text-muted);">
+          Diperbarui: <span id="generated-at">—</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Catatan metodologi ── #}
+  <div class="card" style="margin-bottom:1.5rem; border-left: 3px solid var(--color-primary);">
+    <div class="card-header" style="padding-bottom:0.5rem;">
+      <h2 class="card-title" style="font-size:0.9rem;">Catatan Metodologi & Keterbatasan</h2>
+    </div>
+    <div id="methodology-notes"
+         style="padding:0 1rem 1rem; font-size:0.825rem; color:var(--color-text-muted); line-height:1.6;">
+    </div>
+  </div>
+
+  {# ── Tabel detail ── #}
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Detail Per Sesi Konseling</h2>
+      <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        <select id="filter-status-eff" class="form-control"
+                style="width:auto; min-width:180px; font-size:0.85rem;">
+          <option value="all">Semua Status</option>
+          <option value="evaluated">Terevaluasi</option>
+          <option value="pending_followup">Menunggu Prediksi</option>
+          <option value="too_recent">Terlalu Baru</option>
+        </select>
+        <button id="btn-export-eff" class="btn btn-sm btn-outline">Ekspor CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="result-table" id="eff-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>NIM</th>
+            <th>Nama</th>
+            <th>Konseling Selesai</th>
+            <th>Hari Berlalu</th>
+            <th>Risiko Sebelum</th>
+            <th>Risiko Sesudah</th>
+            <th>Perubahan</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="eff-tbody">
+        </tbody>
+      </table>
+    </div>
+    <div id="eff-empty"
+         style="padding:3rem; text-align:center; color:var(--color-text-muted); display:none;">
+      <p style="font-size:1rem;">Belum ada data konseling yang selesai.</p>
+      <p style="font-size:0.875rem;">
+        Data akan muncul setelah sesi konseling ditandai selesai dan mahasiswa
+        diprediksi ulang minimal 30 hari kemudian.
+      </p>
+    </div>
+    <div id="eff-table-count"
+         style="padding:0.75rem 1rem; font-size:0.85rem; color:var(--color-text-muted);">
+    </div>
+  </div>
+
+</div>
+
+<style>
+.eff-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.eff-cat-label {
+  font-size: 0.825rem;
+  color: var(--color-text-secondary);
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.eff-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.eff-threshold {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.eff-cat-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.eff-cat-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  width: 0%;
+}
+.eff-cat-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: right;
+  color: var(--color-text-primary);
+}
+.delta-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.delta-pill.improved  { background:#D1FAE5; color:#065F46; }
+.delta-pill.worsened  { background:#FEE2E2; color:#991B1B; }
+.delta-pill.unchanged { background:#F1F5F9; color:#475569; }
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.status-badge.evaluated       { background:#D1FAE5; color:#065F46; }
+.status-badge.too_recent      { background:#FEF3C7; color:#92400E; }
+.status-badge.pending_followup{ background:#EFF6FF; color:#1D4ED8; }
+.status-badge.invalid_date    { background:#FEE2E2; color:#991B1B; }
+@media (max-width: 768px) {
+  #eff-content > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+{% endblock %}
+
+{% block counselor_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+
+  // ─── State ──────────────────────────────────────────────────────────────────
+  var allRecords = [];
+  var deltaChart = null;
+
+  // ─── DOM helpers ────────────────────────────────────────────────────────────
+  function el(id) { return document.getElementById(id); }
+  function show(id) { el(id).classList.remove("hidden"); }
+  function hide(id) { el(id).classList.add("hidden"); }
+  function text(id, val) { var e = el(id); if (e) e.textContent = val; }
+
+  // ─── Fetch data ─────────────────────────────────────────────────────────────
+  function loadData() {
+    show("eff-loading");
+    hide("eff-error");
+    hide("eff-content");
+
+    fetch("/konselor/api/effectiveness", { credentials: "same-origin" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (json) {
+        if (json.status !== "success") {
+          throw new Error(json.message || "Respons tidak valid");
+        }
+        render(json.data);
+      })
+      .catch(function (err) {
+        console.error("Effectiveness load error:", err);
+        el("eff-error-msg").textContent =
+          "Gagal memuat data: " + err.message + ". Coba muat ulang halaman.";
+        hide("eff-loading");
+        show("eff-error");
+      });
+  }
+
+  // ─── Render semua komponen ───────────────────────────────────────────────────
+  function render(data) {
+    var s = data.summary;
+    allRecords = data.records || [];
+
+    // Summary cards
+    text("card-total-evaluated", s.total_evaluated);
+    text("card-avg-reduction",
+      s.avg_dropout_reduction_pct !== null
+        ? (s.avg_dropout_reduction_pct > 0 ? "-" : "+") +
+          Math.abs(s.avg_dropout_reduction_pct).toFixed(1) + "pp"
+        : "—"
+    );
+    text("card-improved-pct",
+      s.improved_pct !== null ? s.improved_pct.toFixed(1) + "%" : "—"
+    );
+    text("card-pending", s.total_pending_followup + s.total_too_recent);
+
+    // Peringatan N kecil
+    if (!s.data_sufficient && s.total_evaluated > 0) {
+      el("eff-min-sample").textContent = s.min_sample_required;
+      show("eff-warning-small-n");
+    } else {
+      hide("eff-warning-small-n");
+    }
+
+    // Category bars
+    var total = s.total_counseling_done || 1; // guard div-by-zero
+    renderCatBar("improved",        s.improved_count,         total);
+    renderCatBar("unchanged",       s.unchanged_count,        total);
+    renderCatBar("worsened",        s.worsened_count,         total);
+    renderCatBar("too-recent",      s.total_too_recent,       total);
+    renderCatBar("pending-followup",s.total_pending_followup, total);
+
+    // Metadata
+    text("generated-at", data.generated_at || "—");
+
+    // Methodology notes
+    var notesEl = el("methodology-notes");
+    if (notesEl && s.methodology_notes) {
+      notesEl.innerHTML = s.methodology_notes
+        .map(function (n) { return "<p style='margin:0 0 0.3rem;'>• " + escapeHtml(n) + "</p>"; })
+        .join("");
+    }
+
+    // Chart distribusi delta
+    renderDeltaChart(s.delta_distribution || []);
+
+    // Tabel
+    renderTable(allRecords);
+
+    // Filter listener
+    el("filter-status-eff").addEventListener("change", function () {
+      renderTable(allRecords);
+    });
+
+    // Export CSV
+    el("btn-export-eff").addEventListener("click", exportCsv);
+
+    hide("eff-loading");
+    show("eff-content");
+  }
+
+  function renderCatBar(key, count, total) {
+    var bar = el("bar-" + key);
+    var cnt = el("count-" + key);
+    if (bar) {
+      var pct = total > 0 ? Math.round(count / total * 100) : 0;
+      // requestAnimationFrame agar CSS transition bekerja
+      requestAnimationFrame(function () { bar.style.width = pct + "%"; });
+    }
+    if (cnt) cnt.textContent = count;
+  }
+
+  // ─── Histogram distribusi delta ─────────────────────────────────────────────
+  function renderDeltaChart(deltas) {
+    var canvas = el("chart-delta");
+    if (!canvas || deltas.length === 0) return;
+
+    // Hitung histogram manual (10 bin dari min ke max)
+    var minV = Math.min.apply(null, deltas);
+    var maxV = Math.max.apply(null, deltas);
+    if (minV === maxV) { minV -= 1; maxV += 1; }
+
+    var bins = 10;
+    var width = (maxV - minV) / bins;
+    var counts = new Array(bins).fill(0);
+    var labels = [];
+
+    deltas.forEach(function (d) {
+      var idx = Math.min(Math.floor((d - minV) / width), bins - 1);
+      counts[idx]++;
+    });
+    for (var i = 0; i < bins; i++) {
+      labels.push((minV + i * width).toFixed(1));
+    }
+
+    // Warna: negatif = merah, positif = hijau, 0 = abu
+    var colors = labels.map(function (l) {
+      var v = parseFloat(l);
+      if (v >= 2)  return "#10B981";
+      if (v <= -2) return "#EF4444";
+      return "#94A3B8";
+    });
+
+    if (deltaChart) { deltaChart.destroy(); }
+    deltaChart = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: labels.map(function (l) { return l + "pp"; }),
+        datasets: [{
+          label: "Jumlah sesi",
+          data: counts,
+          backgroundColor: colors,
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: function (items) {
+                return "Delta: " + items[0].label;
+              },
+              label: function (item) {
+                return item.raw + " sesi";
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: "Perubahan p_dropout (pp)", font: { size: 11 } },
+            ticks: { font: { size: 10 } }
+          },
+          y: {
+            title: { display: true, text: "Jumlah sesi", font: { size: 11 } },
+            ticks: { stepSize: 1 }
+          }
+        }
+      }
+    });
+  }
+
+  // ─── Tabel detail ────────────────────────────────────────────────────────────
+  function renderTable(records) {
+    var filterVal = el("filter-status-eff").value;
+    var filtered = filterVal === "all"
+      ? records
+      : records.filter(function (r) { return r.evaluation_status === filterVal; });
+
+    var tbody = el("eff-tbody");
+    var emptyEl = el("eff-empty");
+    var countEl = el("eff-table-count");
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = "";
+      emptyEl.style.display = "block";
+      countEl.textContent = "";
+      return;
+    }
+    emptyEl.style.display = "none";
+    countEl.textContent = "Menampilkan " + filtered.length + " sesi";
+
+    tbody.innerHTML = filtered.map(function (r, i) {
+      var deltaPill = "";
+      if (r.delta_pct !== null && r.delta_pct !== undefined) {
+        var sign  = r.delta_pct > 0 ? "-" : (r.delta_pct < 0 ? "+" : "");
+        var cls   = r.improvement_category || "unchanged";
+        deltaPill = '<span class="delta-pill ' + cls + '">' +
+          sign + Math.abs(r.delta_pct).toFixed(1) + "pp</span>";
+      } else {
+        deltaPill = '<span style="color:var(--color-text-muted)">—</span>';
+      }
+
+      var afterCell = r.p_dropout_after_pct !== null && r.p_dropout_after_pct !== undefined
+        ? r.p_dropout_after_pct.toFixed(1) + "%"
+        : '<span style="color:var(--color-text-muted)">—</span>';
+
+      var statusBadge = '<span class="status-badge ' + r.evaluation_status + '">' +
+        statusLabel(r.evaluation_status) + "</span>";
+
+      var daysCell = r.days_elapsed !== null && r.days_elapsed !== undefined
+        ? r.days_elapsed + " hari"
+        : "—";
+
+      return "<tr>" +
+        "<td class='numeric'>" + (i + 1) + "</td>" +
+        "<td><strong>" + escapeHtml(r.nim) + "</strong></td>" +
+        "<td>" + escapeHtml(r.nama) + "</td>" +
+        "<td style='font-size:0.82rem;'>" + (r.completed_at ? r.completed_at.slice(0, 10) : "—") + "</td>" +
+        "<td class='numeric'>" + daysCell + "</td>" +
+        "<td class='numeric'>" + (r.p_dropout_before_pct !== null ? r.p_dropout_before_pct.toFixed(1) + "%" : "—") + "</td>" +
+        "<td class='numeric'>" + afterCell + "</td>" +
+        "<td>" + deltaPill + "</td>" +
+        "<td>" + statusBadge + "</td>" +
+        "</tr>";
+    }).join("");
+  }
+
+  function statusLabel(status) {
+    var map = {
+      evaluated:        "Terevaluasi",
+      too_recent:       "Terlalu Baru",
+      pending_followup: "Menunggu Prediksi",
+      invalid_date:     "Data Korup",
+    };
+    return map[status] || status;
+  }
+
+  // ─── Export CSV ──────────────────────────────────────────────────────────────
+  function exportCsv() {
+    if (allRecords.length === 0) return;
+    var headers = [
+      "counseling_id","nim","nama","completed_at","days_elapsed",
+      "p_dropout_before_pct","p_dropout_after_pct","delta_pct",
+      "improvement_category","evaluation_status"
+    ];
+    var rows = allRecords.map(function (r) {
+      return headers.map(function (h) {
+        var v = r[h];
+        if (v === null || v === undefined) return "";
+        var s = String(v);
+        if (s.indexOf(",") >= 0 || s.indexOf('"') >= 0) {
+          s = '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      }).join(",");
+    });
+    var csv = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement("a");
+    a.href     = url;
+    a.download = "efektivitas_konseling.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ─── Utility ─────────────────────────────────────────────────────────────────
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ─── Boot ─────────────────────────────────────────────────────────────────────
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", loadData);
+  } else {
+    loadData();
+  }
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,963 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Dashboard Analytics — Konselor{% endblock %}
+
+{% block counselor_content %}
+
+{# ── Page Hero ── #}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Analytics</div>
+    <h1 class="hero-title">Dashboard Analitik Mahasiswa</h1>
+    <p class="hero-desc">
+      Visualisasi distribusi data mahasiswa, profil risiko, dan status konseling
+      berdasarkan seluruh data prediksi yang telah masuk.
+    </p>
+  </div>
+</div>
+
+{# ── KPI Cards ── #}
+<div class="an-kpi-row">
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" style="color: var(--color-primary);">{{ stats.total_students }}</div>
+    <div class="an-kpi-label">Total Mahasiswa</div>
+  </div>
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" style="color: var(--color-danger);">{{ stats.pending_tinggi }}</div>
+    <div class="an-kpi-label">Konseling Pending</div>
+    <div class="an-kpi-sub">Risiko Tinggi</div>
+  </div>
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" style="color: var(--color-warning);">{{ stats.pending_sedang }}</div>
+    <div class="an-kpi-label">Monitoring Pending</div>
+    <div class="an-kpi-sub">Risiko Sedang</div>
+  </div>
+  <div class="an-kpi-card">
+    <div class="an-kpi-value" style="color: var(--color-success);">{{ stats.done_this_month }}</div>
+    <div class="an-kpi-label">Selesai Bulan Ini</div>
+  </div>
+</div>
+
+{# ── Loading / Error / Charts ── #}
+<div id="an-loading" class="an-state-box">
+  <div class="an-spinner"></div>
+  <p>Memuat data analitik…</p>
+</div>
+
+<div id="an-error" class="an-state-box" style="display:none;">
+  <p style="color:var(--color-danger); font-weight:600;">Gagal Memuat Data</p>
+  <p id="an-error-msg" style="font-size:0.875rem; color:var(--color-text-tertiary);"></p>
+  <button class="btn btn-outline btn-sm" style="margin-top:1rem;" id="an-retry-btn">
+    Coba Lagi
+  </button>
+</div>
+
+<div id="an-content" style="display:none;">
+
+  {# ══════════════════════════════════════════════════════════════
+     SECTION 1 — Demografi & Sosial-Ekonomi
+     ══════════════════════════════════════════════════════════════ #}
+  <div class="an-section">
+    <h2 class="an-section-title">Demografi &amp; Sosial-Ekonomi</h2>
+    <div class="an-grid-3">
+
+      <div class="an-card">
+        <div class="an-card-title">Lokasi Tempat Tinggal</div>
+        <div class="an-card-subtitle">Distribusi wilayah tempat tinggal mahasiswa</div>
+        <div class="an-chart-wrap an-chart-doughnut">
+          <canvas id="chart-location"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Pendapatan Keluarga</div>
+        <div class="an-card-subtitle">Distribusi (dalam ribuan Rp / bulan)</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-income"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Status Bantuan Keuangan</div>
+        <div class="an-card-subtitle">0 = Tidak ada · 1 = Sebagian · 2 = Beasiswa penuh</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-aid"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Jarak ke Kampus</div>
+        <div class="an-card-subtitle">Distribusi jarak tempuh (km)</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-distance"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Masalah Koneksi Internet</div>
+        <div class="an-card-subtitle">0 = Tidak pernah · 1 = Kadang · 2 = Sering</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-internet"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Dukungan Keluarga</div>
+        <div class="an-card-subtitle">1 = Kurang · 2 = Cukup · 3 = Kuat</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-support"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════
+     SECTION 2 — Profil Psikologis
+     ══════════════════════════════════════════════════════════════ #}
+  <div class="an-section">
+    <h2 class="an-section-title">Profil Psikologis &amp; Motivasi</h2>
+    <div class="an-grid-3">
+
+      <div class="an-card">
+        <div class="an-card-title">Skor Motivasi Belajar</div>
+        <div class="an-card-subtitle">Distribusi skor 1–10</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-motivation"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Tingkat Stres</div>
+        <div class="an-card-subtitle">1 = Rendah · 2 = Sedang · 3 = Tinggi</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-stress"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Keselarasan Pilihan Karir</div>
+        <div class="an-card-subtitle">1 = Tidak selaras · 2 = Cukup · 3 = Sangat selaras</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-career"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════
+     SECTION 3 — Kinerja Akademik
+     ══════════════════════════════════════════════════════════════ #}
+  <div class="an-section">
+    <h2 class="an-section-title">Kinerja Akademik</h2>
+    <div class="an-grid-2">
+
+      <div class="an-card">
+        <div class="an-card-title">Tingkat Kehadiran</div>
+        <div class="an-card-subtitle">Distribusi persentase kehadiran (%)</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-attendance"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Rata-rata Nilai Ujian</div>
+        <div class="an-card-subtitle">Distribusi nilai rata-rata (skala 0–100)</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-scores"></canvas>
+        </div>
+      </div>
+
+    </div>
+    <div class="an-grid-2" style="margin-top: 16px;">
+
+      <div class="an-card">
+        <div class="an-card-title">Jumlah Mata Kuliah Tertunggak</div>
+        <div class="an-card-subtitle">Frekuensi per jumlah backlogs (0–9)</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-backlogs"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Penilaian Kualitas Pengajaran</div>
+        <div class="an-card-subtitle">Distribusi rating 1–10</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-teaching"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════
+     SECTION 4 — Analitik Risiko & Konseling
+     ══════════════════════════════════════════════════════════════ #}
+  <div class="an-section">
+    <h2 class="an-section-title">Analitik Risiko &amp; Konseling</h2>
+    <div class="an-grid-3">
+
+      <div class="an-card">
+        <div class="an-card-title">Distribusi Tingkat Risiko</div>
+        <div class="an-card-subtitle">Proporsi rendah · sedang · tinggi</div>
+        <div class="an-chart-wrap an-chart-doughnut">
+          <canvas id="chart-risk"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Distribusi Probabilitas Dropout</div>
+        <div class="an-card-subtitle">Histogram probabilitas dropout (%)</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-pdropout"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Tren Perkembangan Mahasiswa</div>
+        <div class="an-card-subtitle">Count berdasarkan arah tren terbaru</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-trajectory"></canvas>
+        </div>
+      </div>
+
+    </div>
+    <div class="an-grid-2" style="margin-top: 16px;">
+
+      <div class="an-card">
+        <div class="an-card-title">Jenis Tindakan Konseling</div>
+        <div class="an-card-subtitle">Konseling (risiko tinggi) vs Monitoring (risiko sedang)</div>
+        <div class="an-chart-wrap an-chart-doughnut">
+          <canvas id="chart-action"></canvas>
+        </div>
+      </div>
+
+      <div class="an-card">
+        <div class="an-card-title">Status Sesi Konseling</div>
+        <div class="an-card-subtitle">Distribusi status seluruh catatan konseling</div>
+        <div class="an-chart-wrap">
+          <canvas id="chart-status"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════
+     SECTION 5 — Equity Dashboard (SDG 4.5)
+     ══════════════════════════════════════════════════════════════ #}
+  <div class="an-section">
+    <h2 class="an-section-title" style="display: flex; align-items: center; gap: 8px;">
+      Equity Dashboard
+      <span style="font-size: 0.7rem; background: var(--color-primary-light); color: var(--color-primary); padding: 2px 8px; border-radius: 20px;">SDG 4.5</span>
+    </h2>
+    <div id="equity-loading" class="an-state-box" style="min-height: 200px;">
+      <div class="an-spinner"></div>
+      <p>Memuat data equity…</p>
+    </div>
+    <div id="equity-error" class="an-state-box" style="display:none; min-height: 200px;">
+      <p style="color:var(--color-danger);">Gagal memuat data equity.</p>
+      <button class="btn btn-outline btn-sm" id="equity-retry">Coba Lagi</button>
+    </div>
+    <div id="equity-content" style="display:none;">
+      <div class="an-grid-2">
+        <div class="an-card">
+          <div class="an-card-title">Risiko Dropout per Lokasi</div>
+          <div class="an-card-subtitle">Rata-rata probabilitas dropout</div>
+          <div class="an-chart-wrap" style="height: 260px;">
+            <canvas id="equity-chart-location"></canvas>
+          </div>
+        </div>
+        <div class="an-card">
+          <div class="an-card-title">Risiko Dropout per Kuintil Pendapatan</div>
+          <div class="an-card-subtitle">Rata-rata probabilitas dropout</div>
+          <div class="an-chart-wrap" style="height: 260px;">
+            <canvas id="equity-chart-income"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="an-card" style="margin-top: 16px;">
+        <div class="an-card-title">Fairness Metrics & Peringatan</div>
+        <div id="fairness-warning" class="an-card-subtitle" style="color: var(--color-warning);"></div>
+        <div id="fairness-details" style="font-size: 12px; margin-top: 8px;"></div>
+      </div>
+    </div>
+  </div>
+
+</div>{# end #an-content #}
+
+<style>
+/* ── KPI Row ──────────────────────────────────────────────────────────────── */
+.an-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 2rem;
+}
+.an-kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.an-kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.an-kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.an-kpi-sub {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+.an-section {
+  margin-bottom: 2.5rem;
+}
+.an-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--color-primary-light);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.an-section-title::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 18px;
+  background: var(--color-primary);
+  border-radius: 2px;
+}
+
+/* ── Grids ────────────────────────────────────────────────────────────────── */
+.an-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.an-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+/* ── Chart Cards ──────────────────────────────────────────────────────────── */
+.an-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.an-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.an-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 2px;
+}
+.an-card-subtitle {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+/* ── Chart Containers ─────────────────────────────────────────────────────── */
+.an-chart-wrap {
+  position: relative;
+  height: 200px;
+  width: 100%;
+}
+.an-chart-doughnut {
+  height: 230px;
+}
+
+/* ── Loading & Error States ───────────────────────────────────────────────── */
+.an-state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  gap: 12px;
+  color: var(--color-text-tertiary);
+  font-size: 15px;
+}
+@keyframes an-spin {
+  to { transform: rotate(360deg); }
+}
+.an-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: an-spin 0.8s linear infinite;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .an-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .an-kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .an-grid-3,
+  .an-grid-2 { grid-template-columns: 1fr; }
+  .an-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .an-chart-wrap { height: 180px; }
+  .an-chart-doughnut { height: 200px; }
+}
+@media (max-width: 360px) {
+  .an-kpi-row { grid-template-columns: 1fr; }
+}
+</style>
+
+{% endblock %}
+
+{% block counselor_scripts %}
+{# Chart.js dari cdnjs — domain ini sudah diizinkan di CSP (whitelist host).
+   External script dari whitelisted domain tidak memerlukan nonce. #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+        referrerpolicy="no-referrer"></script>
+
+{# ──────────────────────────────────────────────────────────────────────────────
+   Finding #6 — nonce pada inline script
+   Tanpa atribut nonce yang cocok, CSP akan memblokir eksekusi script ini.
+   nonce="{{ csp_nonce }}" di-render oleh Jinja2 per-request dari context_processor.
+   ────────────────────────────────────────────────────────────────────────────── #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+
+  /* ── Palet Warna (selaras dengan CSS variables) ── */
+  var C = {
+    primary:  "#2563eb",
+    accent:   "#06b6d4",
+    success:  "#10b981",
+    warning:  "#f59e0b",
+    danger:   "#ef4444",
+    purple:   "#8b5cf6",
+    slate:    "#94a3b8",
+    orange:   "#f97316",
+    teal:     "#14b8a6",
+    indigo:   "#6366f1",
+  };
+
+  /* ── Opsi dasar Chart.js ── */
+  var BASE_OPTS = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 600, easing: "easeOutQuart" },
+  };
+
+  var AXIS_STYLE = {
+    y: {
+      beginAtZero: true,
+      ticks: { font: { size: 11 }, color: "#64748b" },
+      grid:  { color: "#f1f5f9" },
+    },
+    x: {
+      ticks: { font: { size: 10 }, color: "#64748b", maxRotation: 50 },
+      grid:  { display: false },
+    },
+  };
+
+  /* ── Plugin: pesan "Belum ada data" saat chart kosong ── */
+  function emptyPlugin(message) {
+    return {
+      id: "emptyMsg",
+      afterDraw: function (chart) {
+        var total = chart.data.datasets.reduce(function (s, ds) {
+          return s + ds.data.reduce(function (a, b) { return a + b; }, 0);
+        }, 0);
+        if (total > 0) return;
+        var ctx = chart.ctx;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "13px Figtree, system-ui, sans-serif";
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillText(
+          message || "Belum ada data",
+          chart.chartArea.left + (chart.chartArea.right - chart.chartArea.left) / 2,
+          chart.chartArea.top  + (chart.chartArea.bottom - chart.chartArea.top)  / 2
+        );
+        ctx.restore();
+      },
+    };
+  }
+
+  /* ── Bar chart tunggal ── */
+  function makeBar(id, labels, values, color) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    return new Chart(el, {
+      type: "bar",
+      plugins: [emptyPlugin()],
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: color + "BB",
+          borderColor:      color,
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      },
+      options: Object.assign({}, BASE_OPTS, {
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) { return " " + ctx.raw + " mahasiswa"; },
+            },
+          },
+        },
+        scales: AXIS_STYLE,
+      }),
+    });
+  }
+
+  /* ── Histogram (bar rapat tanpa celah) ── */
+  function makeHistogram(id, labels, counts, color) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    return new Chart(el, {
+      type: "bar",
+      plugins: [emptyPlugin()],
+      data: {
+        labels: labels,
+        datasets: [{
+          data: counts,
+          backgroundColor: color + "99",
+          borderColor:      color,
+          borderWidth: 0.5,
+          borderRadius: 2,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0,
+        }],
+      },
+      options: Object.assign({}, BASE_OPTS, {
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) { return " " + ctx.raw + " mahasiswa"; },
+            },
+          },
+        },
+        scales: Object.assign({}, AXIS_STYLE, {
+          x: Object.assign({}, AXIS_STYLE.x, {
+            offset: false,
+            grid: { offset: false, display: false },
+          }),
+        }),
+      }),
+    });
+  }
+
+  /* ── Doughnut chart ── */
+  function makeDoughnut(id, labels, values, colors) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    return new Chart(el, {
+      type: "doughnut",
+      plugins: [emptyPlugin()],
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderColor: "#ffffff",
+          borderWidth: 2,
+          hoverOffset: 6,
+        }],
+      },
+      options: Object.assign({}, BASE_OPTS, {
+        cutout: "65%",
+        plugins: {
+          legend: {
+            display: true,
+            position: "bottom",
+            labels: {
+              font: { size: 11 },
+              padding: 10,
+              color: "#334155",
+              usePointStyle: true,
+              pointStyle: "circle",
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                var total = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+                var pct = total > 0
+                  ? ((ctx.raw / total) * 100).toFixed(1)
+                  : "0.0";
+                return " " + ctx.label + ": " + ctx.raw + " (" + pct + "%)";
+              },
+            },
+          },
+        },
+      }),
+    });
+  }
+
+  /* ── Multi-color bar chart ── */
+  function makeMultiBar(id, labels, values, colorMap, fallback) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    return new Chart(el, {
+      type: "bar",
+      plugins: [emptyPlugin()],
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map(function (l) {
+            return (colorMap[l] || fallback) + "BB";
+          }),
+          borderColor: labels.map(function (l) {
+            return colorMap[l] || fallback;
+          }),
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      },
+      options: Object.assign({}, BASE_OPTS, {
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) { return " " + ctx.raw + " catatan"; },
+            },
+          },
+        },
+        scales: AXIS_STYLE,
+      }),
+    });
+  }
+
+  /* ── Equity chart: bar untuk rata-rata dropout ── */
+  function makeEquityBar(id, labels, values, colors) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    return new Chart(el, {
+      type: "bar",
+      plugins: [emptyPlugin()],
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderColor: colors.map(function(c) { return c; }),
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      },
+      options: Object.assign({}, BASE_OPTS, {
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) { return " Rata-rata dropout: " + (ctx.raw * 100).toFixed(1) + "%"; },
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(val) { return (val * 100).toFixed(0) + "%"; },
+              font: { size: 11 }
+            },
+            title: { display: true, text: "Probabilitas Dropout", font: { size: 10 } }
+          },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }),
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Load data & render semua chart
+     ═══════════════════════════════════════════════════════════ */
+  window.loadAnalytics = function () {
+    var loading = document.getElementById("an-loading");
+    var error   = document.getElementById("an-error");
+    var content = document.getElementById("an-content");
+
+    loading.style.display = "flex";
+    error.style.display   = "none";
+    content.style.display = "none";
+
+    fetch("/konselor/api/analytics")
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (json) {
+        if (json.status === "error") throw new Error(json.message);
+        var d = json.data;
+
+        loading.style.display = "none";
+        content.style.display = "block";
+
+        /* Helper: unpack objek ke {labels, values} */
+        function unpack(obj) {
+          if (!obj) return { labels: [], values: [] };
+          return { labels: Object.keys(obj), values: Object.values(obj) };
+        }
+
+        /* 1. Lokasi Tempat Tinggal — Doughnut */
+        var loc = unpack(d.location_type);
+        makeDoughnut("chart-location", loc.labels, loc.values,
+          [C.primary, C.success, C.warning]);
+
+        /* 2. Pendapatan Keluarga — Histogram */
+        makeHistogram("chart-income",
+          d.family_income.labels, d.family_income.counts, C.primary);
+
+        /* 3. Status Bantuan Keuangan — Bar */
+        var aidMap = { "0": "Tidak Ada", "1": "Sebagian", "2": "Beasiswa Penuh" };
+        var aidData = unpack(d.financial_aid_status);
+        makeBar("chart-aid",
+          aidData.labels.map(function (k) { return aidMap[k] || k; }),
+          aidData.values, C.accent);
+
+        /* 4. Jarak ke Kampus — Histogram */
+        makeHistogram("chart-distance",
+          d.distance_to_institute.labels, d.distance_to_institute.counts, C.warning);
+
+        /* 5. Masalah Internet — Bar */
+        var netMap = { "0": "Tidak Pernah", "1": "Kadang-kadang", "2": "Sering / Selalu" };
+        var netData = unpack(d.internet_connectivity_issues);
+        makeBar("chart-internet",
+          netData.labels.map(function (k) { return netMap[k] || k; }),
+          netData.values, C.danger);
+
+        /* 6. Dukungan Keluarga — Bar */
+        var supMap = { "1": "Kurang", "2": "Cukup", "3": "Kuat" };
+        var supData = unpack(d.family_support);
+        makeBar("chart-support",
+          supData.labels.map(function (k) { return supMap[k] || k; }),
+          supData.values, C.success);
+
+        /* 7. Motivasi Belajar — Bar */
+        var motData = unpack(d.motivation_score);
+        makeBar("chart-motivation", motData.labels, motData.values, C.primary);
+
+        /* 8. Tingkat Stres — Multi-color Bar */
+        var strMap = { "1": "Rendah", "2": "Sedang", "3": "Tinggi" };
+        var strColors = { "Rendah": C.success, "Sedang": C.warning, "Tinggi": C.danger };
+        var strData = unpack(d.stress_levels);
+        var strLabels = strData.labels.map(function (k) { return strMap[k] || k; });
+        makeMultiBar("chart-stress", strLabels, strData.values, strColors, C.slate);
+
+        /* 9. Keselarasan Karir — Bar */
+        var carMap = { "1": "Tidak Selaras", "2": "Cukup Selaras", "3": "Sangat Selaras" };
+        var carData = unpack(d.career_alignment);
+        makeBar("chart-career",
+          carData.labels.map(function (k) { return carMap[k] || k; }),
+          carData.values, C.accent);
+
+        /* 10. Kehadiran — Histogram */
+        makeHistogram("chart-attendance",
+          d.attendance_rate.labels, d.attendance_rate.counts, C.success);
+
+        /* 11. Nilai Ujian — Histogram */
+        makeHistogram("chart-scores",
+          d.test_scores_avg.labels, d.test_scores_avg.counts, C.teal);
+
+        /* 12. Backlogs — Bar */
+        var blkData = unpack(d.backlogs);
+        makeBar("chart-backlogs", blkData.labels, blkData.values, C.orange);
+
+        /* 13. Kualitas Pengajaran — Bar */
+        var tchData = unpack(d.teaching_quality_rating);
+        makeBar("chart-teaching", tchData.labels, tchData.values, C.indigo);
+
+        /* 14. Tingkat Risiko — Doughnut */
+        var riskMap = { rendah: "Risiko Rendah", sedang: "Risiko Sedang", tinggi: "Risiko Tinggi" };
+        var riskData = unpack(d.risk_level);
+        makeDoughnut("chart-risk",
+          riskData.labels.map(function (k) { return riskMap[k] || k; }),
+          riskData.values,
+          riskData.labels.map(function (k) {
+            return { rendah: C.success, sedang: C.warning, tinggi: C.danger }[k] || C.slate;
+          }));
+
+        /* 15. Probabilitas Dropout — Histogram */
+        makeHistogram("chart-pdropout",
+          d.p_dropout.labels, d.p_dropout.counts, C.danger);
+
+        /* 16. Tren — Multi-color Bar */
+        var trajMap = {
+          baru:     "★ Baru",
+          membaik:  "↓ Membaik",
+          memburuk: "↑ Memburuk",
+          stagnan:  "→ Stagnan",
+        };
+        var trajColors = {
+          "★ Baru":     C.primary,
+          "↓ Membaik":  C.success,
+          "↑ Memburuk": C.danger,
+          "→ Stagnan":  C.warning,
+        };
+        var trajData = unpack(d.trajectory);
+        var trajLabels = trajData.labels.map(function (k) { return trajMap[k] || k; });
+        makeMultiBar("chart-trajectory", trajLabels, trajData.values, trajColors, C.slate);
+
+        /* 17. Jenis Aksi — Doughnut */
+        var actData = unpack(d.action_type);
+        makeDoughnut("chart-action",
+          actData.labels.map(function (k) {
+            return k.charAt(0).toUpperCase() + k.slice(1);
+          }),
+          actData.values,
+          [C.danger, C.warning]);
+
+        /* 18. Status Konseling — Multi-color Bar */
+        var stMap = {
+          pending:   "Belum Dijadwal",
+          scheduled: "Dijadwal",
+          done:      "Selesai",
+          skipped:   "Dilewati",
+        };
+        var stColors = {
+          "Belum Dijadwal": C.warning,
+          "Dijadwal":       C.primary,
+          "Selesai":        C.success,
+          "Dilewati":       C.slate,
+        };
+        var stData = unpack(d.status);
+        var stLabels = stData.labels.map(function (k) { return stMap[k] || k; });
+        makeMultiBar("chart-status", stLabels, stData.values, stColors, C.slate);
+
+        // Load equity data after main analytics
+        loadEquityData();
+      })
+      .catch(function (err) {
+        loading.style.display = "none";
+        error.style.display   = "flex";
+        document.getElementById("an-error-msg").textContent =
+          err.message || "Kesalahan tidak diketahui.";
+      });
+  };
+
+  /* ── Equity Dashboard ───────────────────────────────────────────────────── */
+  function loadEquityData() {
+    var equityLoading = document.getElementById("equity-loading");
+    var equityError = document.getElementById("equity-error");
+    var equityContent = document.getElementById("equity-content");
+
+    if (!equityLoading) return;
+    equityLoading.style.display = "flex";
+    equityError.style.display = "none";
+    equityContent.style.display = "none";
+
+    fetch("/konselor/api/equity")
+      .then(function(res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function(json) {
+        if (json.status === "error") throw new Error(json.message);
+        var data = json.data;
+
+        equityLoading.style.display = "none";
+        equityContent.style.display = "block";
+
+        // Render chart per lokasi
+        var locLabels = Object.keys(data.by_location);
+        var locValues = locLabels.map(function(loc) { return data.by_location[loc].avg_p_dropout; });
+        var locColors = locLabels.map(function(loc) {
+          if (loc === "Urban") return C.primary;
+          if (loc === "Semi-urban") return C.warning;
+          return C.danger;
+        });
+        makeEquityBar("equity-chart-location", locLabels, locValues, locColors);
+
+        // Render chart per kuintil
+        var incLabels = Object.keys(data.by_income_quintile);
+        var incValues = incLabels.map(function(q) { return data.by_income_quintile[q].avg_p_dropout; });
+        var incColors = incLabels.map(function(_, idx) {
+          var hue = 200 + idx * 30;
+          return "hsl(" + hue + ", 70%, 55%)";
+        });
+        makeEquityBar("equity-chart-income", incLabels, incValues, incColors);
+
+        // Fairness metrics
+        var fairness = data.fairness;
+        var warningDiv = document.getElementById("fairness-warning");
+        var detailsDiv = document.getElementById("fairness-details");
+        if (fairness.warning) {
+          warningDiv.innerHTML = "⚠️ " + fairness.warning;
+          warningDiv.style.color = "#f59e0b";
+        } else if (!fairness.has_actual_data) {
+          warningDiv.innerHTML = "ℹ️ " + fairness.warning;
+          warningDiv.style.color = "#64748b";
+        } else {
+          warningDiv.innerHTML = "✅ Tidak terdeteksi bias signifikan antar kelompok lokasi.";
+          warningDiv.style.color = "#10b981";
+        }
+
+        if (fairness.has_actual_data && Object.keys(fairness.by_location).length > 0) {
+          var detailHtml = "<strong>False Positive Rate (FPR) & False Negative Rate (FNR) per Lokasi:</strong><br/>";
+          for (var loc in fairness.by_location) {
+            var fpr = fairness.by_location[loc].fpr;
+            var fnr = fairness.by_location[loc].fnr;
+            detailHtml += "<span style='display:inline-block; width:100px;'>" + loc + ":</span> FPR = " + (fpr*100).toFixed(1) + "%, FNR = " + (fnr*100).toFixed(1) + "%<br/>";
+          }
+          detailsDiv.innerHTML = detailHtml;
+        } else {
+          detailsDiv.innerHTML = "<em>Data dropout aktual belum tersedia. Fairness metrics tidak dapat dihitung.</em>";
+        }
+      })
+      .catch(function(err) {
+        equityLoading.style.display = "none";
+        equityError.style.display = "flex";
+        console.error("Equity data error:", err);
+      });
+  }
+
+  // Retry buttons
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function() {
+      loadAnalytics();
+      var retryBtn = document.getElementById("an-retry-btn");
+      if (retryBtn) retryBtn.addEventListener("click", function () { loadAnalytics(); });
+      var equityRetry = document.getElementById("equity-retry");
+      if (equityRetry) equityRetry.addEventListener("click", function () { loadEquityData(); });
+    });
+  } else {
+    loadAnalytics();
+    var retryBtn = document.getElementById("an-retry-btn");
+    if (retryBtn) retryBtn.addEventListener("click", function () { loadAnalytics(); });
+    var equityRetry = document.getElementById("equity-retry");
+    if (equityRetry) equityRetry.addEventListener("click", function () { loadEquityData(); });
+  }
+})();
+</script>
+{% endblock %}

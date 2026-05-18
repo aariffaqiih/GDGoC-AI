@@ -1,0 +1,230 @@
+{% extends "counselor/layout.html" %}
+{% block title %}Mutu Pengajaran — SDG 4.c{% endblock %}
+
+{% block counselor_content %}
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="hero-badge">SDG 4.c — Kualitas Dosen</div>
+    <h1 class="hero-title">Analitik Mutu Pengajaran</h1>
+    <p class="hero-desc">
+      Agregasi penilaian kualitas pengajaran dari perspektif mahasiswa.
+      Data bersumber dari <code>teaching_quality_rating</code> yang diinput saat prediksi.
+      Gunakan untuk program pengembangan dosen yang berbasis data.
+    </p>
+  </div>
+</div>
+
+<div id="ta-loading" style="text-align:center; padding:4rem 0; color:var(--color-text-muted);">
+  <div class="btn-loader" style="display:inline-block; margin-bottom:1rem;"></div>
+  <p>Memuat data kualitas pengajaran…</p>
+</div>
+<div id="ta-error" class="hidden" style="padding:2rem; text-align:center; color:var(--color-danger);">
+  <p id="ta-error-msg">Gagal memuat data.</p>
+  <button class="btn btn-outline btn-sm" id="ta-retry">Coba Lagi</button>
+</div>
+
+<div id="ta-content" class="hidden">
+
+  {# ── KPI Cards ── #}
+  <div class="batch-guide-row" style="margin-bottom:1.5rem;">
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:var(--color-primary); font-size:1.5rem;" id="ta-avg-rating">—</div>
+      <div class="guide-title">Rata-rata Rating Pengajaran</div>
+      <div class="guide-desc">dari skala 1–10</div>
+    </div>
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:var(--color-danger); font-size:1.5rem;" id="ta-low-count">—</div>
+      <div class="guide-title">Rating ≤ 4 (Butuh Perhatian)</div>
+      <div class="guide-desc">Mahasiswa dengan penilaian rendah</div>
+    </div>
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:var(--color-warning); font-size:1.25rem;" id="ta-high-risk-avg">—</div>
+      <div class="guide-title">Avg Rating (Risiko Tinggi)</div>
+      <div class="guide-desc">vs mahasiswa risiko rendah/sedang</div>
+    </div>
+    <div class="guide-card" style="flex:1; text-align:center;">
+      <div class="guide-step" style="background:var(--color-success); font-size:1.25rem;" id="ta-total-data">—</div>
+      <div class="guide-title">Total Data Poin</div>
+      <div class="guide-desc">Prediksi yang dianalisis</div>
+    </div>
+  </div>
+
+  {# ── Dua kolom ── #}
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;">
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Distribusi Rating Pengajaran</h2>
+      </div>
+      <div style="padding:1rem; position:relative; height:250px;">
+        <canvas id="ta-dist-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Rekomendasi Pengembangan Dosen (SDG 4.c)</h2>
+      </div>
+      <div style="padding:1rem;" id="ta-recs">
+      </div>
+      <div style="padding:0 1rem 1rem; font-size:0.825rem; color:var(--color-text-muted);" id="ta-compliance">
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Korelasi rating vs risiko dropout ── #}
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header">
+      <h2 class="card-title">Korelasi: Kualitas Pengajaran vs Risiko Dropout</h2>
+    </div>
+    <div style="padding:1rem; font-size:0.9rem; line-height:1.8;" id="ta-correlation">
+    </div>
+  </div>
+
+  {# ── Mahasiswa dengan penilaian rendah ── #}
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Mahasiswa dengan Rating Pengajaran Rendah (≤ 4)</h2>
+      <span style="font-size:0.8rem; color:var(--color-text-muted);">
+        Tunjukkan ke koordinator program studi untuk tindak lanjut
+      </span>
+    </div>
+    <div id="ta-low-empty" style="padding:2rem; text-align:center; color:var(--color-text-muted); display:none;">
+      Tidak ada mahasiswa dengan rating pengajaran rendah.
+    </div>
+    <div class="table-wrap" id="ta-low-wrap">
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th>#</th><th>NIM</th><th>Nama</th>
+            <th>Rating Pengajaran</th><th>Tingkat Risiko</th>
+          </tr>
+        </thead>
+        <tbody id="ta-low-tbody"></tbody>
+      </table>
+    </div>
+    <div style="padding:0.75rem 1rem; font-size:0.8rem; color:var(--color-text-muted);" id="ta-ts"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block counselor_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+  var chart = null;
+
+  function load() {
+    document.getElementById("ta-loading").classList.remove("hidden");
+    document.getElementById("ta-error").classList.add("hidden");
+    document.getElementById("ta-content").classList.add("hidden");
+
+    fetch("/konselor/api/teacher-analytics", { credentials: "same-origin" })
+      .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(j) {
+        if (j.status !== "success") throw new Error(j.message);
+        render(j.data);
+      })
+      .catch(function(e) {
+        document.getElementById("ta-error-msg").textContent = "Gagal: " + e.message;
+        document.getElementById("ta-loading").classList.add("hidden");
+        document.getElementById("ta-error").classList.remove("hidden");
+      });
+  }
+
+  function render(d) {
+    document.getElementById("ta-avg-rating").textContent = d.avg_rating !== null ? d.avg_rating + "/10" : "—";
+    document.getElementById("ta-low-count").textContent = d.low_rating_students ? d.low_rating_students.length : "0";
+    var byRisk = d.avg_rating_by_risk || {};
+    document.getElementById("ta-high-risk-avg").textContent =
+      byRisk.tinggi !== null && byRisk.tinggi !== undefined ? byRisk.tinggi + "/10" : "—";
+    document.getElementById("ta-total-data").textContent = d.total_data_points || 0;
+
+    // Chart
+    var dist = d.rating_distribution || {};
+    var labels = Object.keys(dist).sort(function(a,b){ return +a - +b; });
+    var counts = labels.map(function(l){ return dist[l]; });
+    var colors = labels.map(function(l) {
+      var v = parseInt(l);
+      if (v <= 3) return "#EF4444";
+      if (v <= 5) return "#F59E0B";
+      if (v <= 7) return "#3B82F6";
+      return "#10B981";
+    });
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById("ta-dist-chart"), {
+      type: "bar",
+      data: {
+        labels: labels.map(function(l){ return "Rating " + l; }),
+        datasets: [{ label: "Jumlah mahasiswa", data: counts, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+      }
+    });
+
+    // Rekomendasi
+    var recsEl = document.getElementById("ta-recs");
+    var recs = d.training_recommendations || [];
+    recsEl.innerHTML = recs.map(function(r, i) {
+      return "<div style='padding:0.6rem 0; border-bottom:0.5px solid var(--color-border); font-size:0.875rem;'>" +
+        "<span style='font-weight:600; color:var(--color-primary);'>" + (i+1) + ".</span> " + escHtml(r) + "</div>";
+    }).join("") || "<p style='color:var(--color-text-muted); font-size:0.875rem;'>Data belum cukup untuk rekomendasi.</p>";
+
+    document.getElementById("ta-compliance").textContent = d.sdg_4c_compliance_note || "";
+
+    // Korelasi
+    var corrEl = document.getElementById("ta-correlation");
+    var hr = byRisk.tinggi, lr = byRisk.rendah_sedang;
+    if (hr !== null && hr !== undefined && lr !== null && lr !== undefined) {
+      var diff = (lr - hr).toFixed(2);
+      corrEl.innerHTML =
+        "<p>Rata-rata rating pengajaran mahasiswa <strong>risiko tinggi: " + hr + "/10</strong>" +
+        " vs <strong>risiko rendah/sedang: " + lr + "/10</strong>.</p>" +
+        "<p>Selisih " + diff + " poin — " +
+        (parseFloat(diff) > 1 ? "<strong style='color:#EF4444;'>mahasiswa berisiko tinggi menilai pengajaran lebih rendah secara signifikan.</strong> Pertimbangkan peningkatan mutu pengajaran sebagai intervensi." :
+        "perbedaan tidak signifikan.") + "</p>";
+    } else {
+      corrEl.innerHTML = "<p style='color:var(--color-text-muted);'>Belum ada cukup data untuk analisis korelasi.</p>";
+    }
+
+    // Tabel mahasiswa rating rendah
+    var students = d.low_rating_students || [];
+    var tbody = document.getElementById("ta-low-tbody");
+    if (students.length === 0) {
+      document.getElementById("ta-low-empty").style.display = "block";
+      document.getElementById("ta-low-wrap").style.display = "none";
+    } else {
+      document.getElementById("ta-low-empty").style.display = "none";
+      document.getElementById("ta-low-wrap").style.display = "";
+      tbody.innerHTML = students.map(function(s, i) {
+        var riskColor = s.risk_level === "tinggi" ? "#EF4444" : (s.risk_level === "sedang" ? "#F59E0B" : "#10B981");
+        return "<tr><td class='numeric'>" + (i+1) + "</td><td><strong>" + escHtml(s.nim) + "</strong></td>" +
+          "<td>" + escHtml(s.nama) + "</td>" +
+          "<td class='numeric' style='color:#EF4444; font-weight:600;'>" + s.rating + "/10</td>" +
+          "<td><span class='risk-tag " + s.risk_level + "' style='color:" + riskColor + ";'>" + s.risk_level + "</span></td></tr>";
+      }).join("");
+    }
+    document.getElementById("ta-ts").textContent = "Diperbarui: " + (d.computed_at || "—");
+
+    document.getElementById("ta-loading").classList.add("hidden");
+    document.getElementById("ta-content").classList.remove("hidden");
+  }
+
+  function escHtml(s) {
+    return String(s || "").replace(/[&<>]/g, function(m) {
+      return m === "&" ? "&amp;" : m === "<" ? "&lt;" : "&gt;";
+    });
+  }
+
+  document.getElementById("ta-retry").addEventListener("click", load);
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", load);
+  else load();
+})();
+</script>
+{% endblock %}
